@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { DEMO_USERS } from "@/lib/auth";
 import { useAuthStore } from "@/lib/store";
+import { OrchestraLogo, OrchestraLogoRed } from "@/components/shared/OrchestraLogo";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -35,15 +36,8 @@ export default function LoginPage() {
       <div className="hidden lg:flex w-1/2 flex-col justify-between p-12"
         style={{ background: "linear-gradient(135deg, #111D4A 0%, #1B2E6B 60%, #2B4494 100%)" }}>
         <div>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center">
-              <span className="text-lg font-bold" style={{ color: "#1B2E6B" }}>O</span>
-            </div>
-            <span className="text-white text-xl font-bold tracking-wide">ORCHESTRA</span>
-          </div>
-          <div className="mt-2 ml-[52px]">
-            <span className="text-xs uppercase tracking-widest" style={{ color: "#F47920" }}>Export & International</span>
-          </div>
+          <OrchestraLogo className="h-10 w-auto" />
+          <div className="mt-2 text-xs uppercase tracking-widest font-semibold" style={{ color: "#E40E20" }}>Export & International</div>
         </div>
 
         <div className="text-white">
@@ -74,14 +68,9 @@ export default function LoginPage() {
       <div className="flex-1 flex items-center justify-center p-8 bg-[#F4F6FB]">
         <div className="w-full max-w-md">
           {/* Mobile logo */}
-          <div className="lg:hidden mb-8 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: "#1B2E6B" }}>
-              <span className="text-lg font-bold text-white">O</span>
-            </div>
-            <div>
-              <div className="font-bold text-gray-900">ORCHESTRA</div>
-              <div className="text-xs" style={{ color: "#F47920" }}>Export & International</div>
-            </div>
+          <div className="lg:hidden mb-8">
+            <OrchestraLogoRed className="h-9 w-auto" />
+            <div className="mt-1 text-xs uppercase tracking-widest font-semibold" style={{ color: "#E40E20" }}>Export & International</div>
           </div>
 
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
@@ -123,7 +112,7 @@ export default function LoginPage() {
                 type="submit"
                 disabled={loading}
                 className="w-full py-3 px-4 rounded-xl text-white font-semibold text-sm transition-all disabled:opacity-60"
-                style={{ background: loading ? "#6B7280" : "#F47920" }}
+                style={{ background: loading ? "#6B7280" : "#E40E20" }}
               >
                 {loading ? "Connexion en cours…" : "Se connecter"}
               </button>

@@ -1,149 +1,188 @@
 "use client";
-import { COUNTRIES, TODOS } from "@/lib/data";
+import { COUNTRIES, STORES } from "@/lib/data";
+import { useTodoStore, useCodaSyncStore } from "@/lib/store";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, AreaChart, Area, RadarChart, Radar, PolarGrid,
-  PolarAngleAxis, Legend
+  PieChart, Pie, Cell, Legend
 } from "recharts";
 
-const COLORS = ["#1B2E6B", "#F47920", "#22C55E", "#8B5CF6", "#F59E0B", "#EF4444"];
+const COLORS = ["#1B2E6B", "#E40E20", "#22C55E", "#8B5CF6", "#F59E0B", "#EF4444"];
 
 export default function StatsPage() {
-  const byRegion = ["Europe", "Moyen-Orient", "Afrique", "Amériques", "Asie"].map((r) => ({
-    region: r,
-    magasins: COUNTRIES.filter((c) => c.region === r).reduce((sum, c) => sum + c.stores, 0),
-    pays: COUNTRIES.filter((c) => c.region === r).length,
-    ca: COUNTRIES.filter((c) => c.region === r).reduce((sum, c) => sum + (c.revenue ?? 0), 0) / 1_000_000,
-  })).filter((r) => r.magasins > 0 || r.pays > 0);
+  const { todos } = useTodoStore();
+  const { stores: syncedStores, lastSync } = useCodaSyncStore();
+  const stores = syncedStores ?? STORES;
 
-  const byPartnership = ["franchise", "licence", "distribution", "propre", "joint-venture"].map((p) => ({
-    type: p,
-    value: COUNTRIES.filter((c) => c.partnership === p).length,
+  // All stats computed from real store data
+  const totalStores = stores.length;
+  const storesOpen = stores.filter((s) => s.status === "✅ Ouvert").length;
+  const storesEnCours = stores.filter((s) => s.status === "🚧 En cours").length;
+  const storesSuspendu = stores.filter((s) => s.status === "⏸️ Suspendu").length;
+  const storesFermeture = stores.filter((s) => s.status === "FERMETURE A VENIR" || s.status === "❌ Fermé").length;
+  const storesEnRecherche = stores.filter((s) => s.status === "🔍 En recherche cellule").length;
+  const totalCountries = new Set(stores.map((s) => s.country)).size;
+
+  const allRegions = Array.from(new Set(COUNTRIES.map((c) => c.region)));
+  const byRegion = allRegions.map((r) => ({
+    region: r.length > 12 ? r.substring(0, 12) + "…" : r,
+    fullRegion: r,
+    magasins: stores.filter((s) => COUNTRIES.find((c) => c.codaKey === s.country)?.region === r).length,
+    pays: COUNTRIES.filter((c) => c.region === r && stores.some((s) => s.country === c.codaKey)).length,
+  })).filter((r) => r.magasins > 0).sort((a, b) => b.magasins - a.magasins);
+
+  const partnershipTypes = ["FRANCHISE", "MASTER FRANCHISE", "DISTRI LIGHT", "COMMISSION AFFILIATION"];
+  const byPartnership = partnershipTypes.map((p) => ({
+    type: p === "COMMISSION AFFILIATION" ? "COMM. AFFIL." : p,
+    value: stores.filter((s) => s.partnership === p).length,
   })).filter((p) => p.value > 0);
 
-  const byStatus = [
-    { name: "Actif", value: COUNTRIES.filter((c) => c.status === "actif").length, color: "#22C55E" },
-    { name: "En ouverture", value: COUNTRIES.filter((c) => c.status === "en_ouverture").length, color: "#F47920" },
-    { name: "Négociation", value: COUNTRIES.filter((c) => c.status === "négociation").length, color: "#8B5CF6" },
-    { name: "Prospect", value: COUNTRIES.filter((c) => c.status === "prospect").length, color: "#6B7280" },
+  const statusGroups = [
+    { name: "Ouverts", value: storesOpen, color: "#22C55E" },
+    { name: "En cours", value: storesEnCours, color: "#E40E20" },
+    { name: "En recherche", value: storesEnRecherche, color: "#F59E0B" },
+    { name: "Suspendus", value: storesSuspendu, color: "#8B5CF6" },
+    { name: "Fermeture", value: storesFermeture, color: "#EF4444" },
   ].filter((s) => s.value > 0);
 
-  const revenueByCountry = COUNTRIES.filter((c) => c.revenue)
-    .sort((a, b) => (b.revenue ?? 0) - (a.revenue ?? 0))
-    .slice(0, 8)
-    .map((c) => ({
-      name: `${c.flag} ${c.name}`,
-      ca: ((c.revenue ?? 0) / 1_000_000).toFixed(2),
-      growth: c.growth ?? 0,
-    }));
+  const storesByCountry = COUNTRIES.map((c) => ({
+    name: `${c.flag} ${c.name}`,
+    stores: stores.filter((s) => s.country === c.codaKey).length,
+  })).filter((c) => c.stores > 0).sort((a, b) => b.stores - a.stores).slice(0, 10);
 
-  const growthTrend = [
-    { year: "2020", ca: 12.4 },
-    { year: "2021", ca: 14.1 },
-    { year: "2022", ca: 18.6 },
-    { year: "2023", ca: 24.3 },
-    { year: "2024", ca: 34.8 },
-    { year: "2025 (est.)", ca: 41.1 },
+  const todosByStatus = [
+    { name: "En cours", value: todos.filter((t) => t.status === "en_cours").length },
+    { name: "À faire", value: todos.filter((t) => t.status === "à_faire").length },
+    { name: "Bloqué", value: todos.filter((t) => t.status === "bloqué").length },
+    { name: "Terminé", value: todos.filter((t) => t.status === "terminé").length },
   ];
+
+  const syncInfo = lastSync
+    ? `Sync Coda : ${new Date(lastSync).toLocaleString("fr-FR")}`
+    : "Données : import Coda statique — cliquez « Synchroniser Coda » pour actualiser";
 
   return (
     <div className="space-y-6">
-      {/* Top KPIs */}
+      {/* Source indicator */}
+      <div className="flex items-center gap-2 text-xs text-gray-500 bg-white border border-gray-100 rounded-xl px-4 py-2">
+        <div className={`w-2 h-2 rounded-full ${lastSync ? "bg-green-400" : "bg-amber-400"}`} />
+        {syncInfo}
+      </div>
+
+      {/* KPIs — all real */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "CA Export Total", value: `${(COUNTRIES.reduce((s, c) => s + (c.revenue ?? 0), 0) / 1_000_000).toFixed(1)}M€`, sub: "+18% vs N-1", color: "#1B2E6B" },
-          { label: "Nombre de marchés", value: COUNTRIES.length, sub: `${COUNTRIES.filter(c => c.status === "actif").length} actifs`, color: "#F47920" },
-          { label: "Magasins totaux", value: COUNTRIES.reduce((s, c) => s + c.stores, 0), sub: "Réseau mondial", color: "#22C55E" },
-          { label: "Croissance moy.", value: `+${(COUNTRIES.filter(c => c.growth).reduce((s, c) => s + (c.growth ?? 0), 0) / COUNTRIES.filter(c => c.growth).length).toFixed(1)}%`, sub: "Sur marchés actifs", color: "#8B5CF6" },
+          { label: "Pays / marchés actifs", value: totalCountries, sub: `${COUNTRIES.length} dans la base`, color: "#1B2E6B" },
+          { label: "Magasins totaux", value: totalStores, sub: `${storesOpen} ouverts`, color: "#E40E20" },
+          { label: "Ouvertures en cours", value: storesEnCours, sub: `+ ${storesEnRecherche} en recherche`, color: "#22C55E" },
+          { label: "Actions en cours", value: todos.filter((t) => t.status !== "terminé").length, sub: "Plan d'actions", color: "#8B5CF6" },
         ].map((k) => (
           <div key={k.label} className="bg-white rounded-2xl p-5 border border-gray-100">
             <p className="text-xs text-gray-500 mb-1">{k.label}</p>
-            <p className="text-3xl font-bold" style={{ color: k.color }}>{k.value}</p>
+            <p className="text-2xl font-bold" style={{ color: k.color }}>{k.value}</p>
             <p className="text-xs text-gray-400 mt-1">{k.sub}</p>
           </div>
         ))}
       </div>
 
-      {/* Charts row 1 */}
+      {/* Row 1 */}
       <div className="grid grid-cols-3 gap-4">
         <div className="col-span-2 bg-white rounded-2xl p-5 border border-gray-100">
-          <h2 className="font-semibold text-gray-800 mb-1">CA par marché (M€)</h2>
-          <p className="text-xs text-gray-400 mb-4">Top 8 pays par chiffre d'affaires</p>
+          <h2 className="font-semibold text-gray-900 mb-1">Magasins par pays (Top 10)</h2>
+          <p className="text-xs text-gray-500 mb-4">Nombre de points de vente · données Coda réelles</p>
           <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={revenueByCountry} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f5" horizontal={false} />
-              <XAxis type="number" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={130} axisLine={false} tickLine={false} />
-              <Tooltip formatter={(v) => [`${String(v)}M€`, "CA"]} />
-              <Bar dataKey="ca" fill="#1B2E6B" radius={[0, 4, 4, 0]} />
+            <BarChart data={storesByCountry} layout="vertical">
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
+              <XAxis type="number" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <YAxis dataKey="name" type="category" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={110} />
+              <Tooltip formatter={(v) => [`${String(v)} magasins`]} />
+              <Bar dataKey="stores" fill="#1B2E6B" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
 
         <div className="bg-white rounded-2xl p-5 border border-gray-100">
-          <h2 className="font-semibold text-gray-800 mb-1">Statut des marchés</h2>
-          <p className="text-xs text-gray-400 mb-4">Répartition par statut</p>
-          <ResponsiveContainer width="100%" height={180}>
+          <h2 className="font-semibold text-gray-900 mb-1">Statut des magasins</h2>
+          <p className="text-xs text-gray-500 mb-3">Répartition réelle</p>
+          <ResponsiveContainer width="100%" height={160}>
             <PieChart>
-              <Pie data={byStatus} dataKey="value" cx="50%" cy="50%" outerRadius={70} innerRadius={40}
-                label={({ name, value }) => `${name}: ${value}`} labelLine={false}>
-                {byStatus.map((s, i) => <Cell key={i} fill={s.color} />)}
+              <Pie data={statusGroups} dataKey="value" cx="50%" cy="50%" outerRadius={65} innerRadius={35}>
+                {statusGroups.map((s, i) => <Cell key={i} fill={s.color} />)}
               </Pie>
-              <Tooltip />
+              <Tooltip formatter={(v) => [`${String(v)} magasins`]} />
             </PieChart>
           </ResponsiveContainer>
+          <div className="space-y-1 mt-2">
+            {statusGroups.map((s) => (
+              <div key={s.name} className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-sm" style={{ background: s.color }} />
+                  <span className="text-gray-600">{s.name}</span>
+                </div>
+                <span className="font-semibold">{s.value}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* Charts row 2 */}
+      {/* Row 2 */}
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-white rounded-2xl p-5 border border-gray-100">
-          <h2 className="font-semibold text-gray-800 mb-1">Évolution CA Export (M€)</h2>
-          <p className="text-xs text-gray-400 mb-4">Historique 2020-2025</p>
-          <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={growthTrend}>
-              <defs>
-                <linearGradient id="ca" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#F47920" stopOpacity={0.2} />
-                  <stop offset="95%" stopColor="#F47920" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f5" />
-              <XAxis dataKey="year" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-              <Tooltip formatter={(v) => [`${String(v)}M€`, "CA"]} />
-              <Area type="monotone" dataKey="ca" stroke="#F47920" strokeWidth={2.5} fill="url(#ca)" />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-
-        <div className="bg-white rounded-2xl p-5 border border-gray-100">
-          <h2 className="font-semibold text-gray-800 mb-1">Magasins & CA par région</h2>
-          <p className="text-xs text-gray-400 mb-4">Comparaison régionale</p>
+          <h2 className="font-semibold text-gray-900 mb-1">Magasins par région</h2>
+          <p className="text-xs text-gray-500 mb-4">Distribution géographique réelle</p>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={byRegion}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f5" />
-              <XAxis dataKey="region" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-              <Tooltip />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="region" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <Tooltip labelFormatter={(l) => byRegion.find((r) => r.region === l)?.fullRegion ?? l} />
               <Bar dataKey="magasins" name="Magasins" fill="#1B2E6B" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="pays" name="Pays" fill="#F47920" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="pays" name="Pays" fill="#E40E20" radius={[4, 4, 0, 0]} />
+              <Legend />
             </BarChart>
           </ResponsiveContainer>
         </div>
-      </div>
 
-      {/* Partnership breakdown */}
-      <div className="bg-white rounded-2xl p-5 border border-gray-100">
-        <h2 className="font-semibold text-gray-800 mb-4">Répartition des partenariats</h2>
-        <div className="grid grid-cols-5 gap-3">
-          {byPartnership.map((p, i) => (
-            <div key={p.type} className="text-center p-4 rounded-xl border border-gray-100 bg-gray-50">
-              <div className="text-3xl font-black mb-1" style={{ color: COLORS[i] }}>{p.value}</div>
-              <div className="text-xs text-gray-500 capitalize font-medium">{p.type}</div>
+        <div className="bg-white rounded-2xl p-5 border border-gray-100">
+          <h2 className="font-semibold text-gray-900 mb-4">Type de partenariat</h2>
+          <div className="space-y-4">
+            {byPartnership.map((p, i) => (
+              <div key={p.type}>
+                <div className="flex items-center justify-between text-xs mb-1.5">
+                  <span className="text-gray-700 font-medium">{p.type}</span>
+                  <span className="font-bold text-gray-800">{p.value} <span className="font-normal text-gray-400">magasins</span></span>
+                </div>
+                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full"
+                    style={{
+                      width: `${(p.value / totalStores) * 100}%`,
+                      background: COLORS[i],
+                    }} />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-6 pt-4 border-t border-gray-100">
+            <h3 className="font-semibold text-gray-900 mb-3 text-sm">Plan d'actions</h3>
+            <div className="space-y-3">
+              {todosByStatus.map((t, i) => (
+                <div key={t.name}>
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="text-gray-700">{t.name}</span>
+                    <span className="font-semibold">{t.value}</span>
+                  </div>
+                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full"
+                      style={{
+                        width: todos.length ? `${(t.value / todos.length) * 100}%` : "0%",
+                        background: COLORS[i],
+                      }} />
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
+          </div>
         </div>
       </div>
     </div>

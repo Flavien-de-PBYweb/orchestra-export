@@ -1,152 +1,78 @@
 "use client";
-import { ECOMMERCE_STORES, COUNTRIES } from "@/lib/data";
-import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, BarChart, Bar
-} from "recharts";
-import { TrendingUp, ShoppingBag, Percent, Package, ExternalLink, Plus } from "lucide-react";
-
-const weeklyData = [
-  { day: "Lun", ma: 9200, ae: 4100, sa: 6300, es: 13800 },
-  { day: "Mar", ma: 8400, ae: 4600, sa: 7100, es: 14200 },
-  { day: "Mer", ma: 9800, ae: 3900, sa: 6800, es: 13100 },
-  { day: "Jeu", ma: 10200, ae: 5200, sa: 7600, es: 15300 },
-  { day: "Ven", ma: 11400, ae: 6100, sa: 8200, es: 16800 },
-  { day: "Sam", ma: 13600, ae: 7400, sa: 9500, es: 18200 },
-  { day: "Dim", ma: 10800, ae: 5900, sa: 8100, es: 14900 },
-];
+import { ShoppingBag, Plus, ExternalLink, ArrowRight } from "lucide-react";
 
 export default function ReportingPage() {
-  const totalRevenue30d = ECOMMERCE_STORES.reduce((s, e) => s + e.revenue30d, 0);
-  const totalOrders30d = ECOMMERCE_STORES.reduce((s, e) => s + e.orders30d, 0);
-  const avgConversion = ECOMMERCE_STORES.reduce((s, e) => s + e.conversionRate, 0) / ECOMMERCE_STORES.length;
-  const avgGrowth = ECOMMERCE_STORES.reduce((s, e) => s + e.growth, 0) / ECOMMERCE_STORES.length;
-
   return (
     <div className="space-y-6">
-      {/* Connect banner */}
-      <div className="rounded-2xl p-4 border bg-white flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gray-900 flex items-center justify-center">
-            <ShoppingBag size={18} className="text-white" />
-          </div>
-          <div>
-            <h3 className="font-semibold text-gray-800 text-sm">Boutiques e-commerce connectées</h3>
-            <p className="text-xs text-gray-500">{ECOMMERCE_STORES.length} boutiques · Shopify, WooCommerce, SFCC · Sync toutes les heures</p>
-          </div>
+      {/* Not connected state */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
+          <ShoppingBag size={28} className="text-gray-400" />
         </div>
-        <button className="flex items-center gap-2 text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">
-          <Plus size={14} /> Connecter une boutique
-        </button>
+        <h2 className="text-xl font-bold text-gray-800 mb-2">Reporting E-commerce</h2>
+        <p className="text-gray-500 text-sm max-w-md mx-auto mb-6">
+          Connectez vos boutiques e-commerce (Shopify, WooCommerce, Salesforce Commerce Cloud) pour voir les revenus, commandes et taux de conversion en temps réel.
+        </p>
+        <a href="/admin"
+          className="inline-flex items-center gap-2 px-5 py-2.5 text-sm text-white rounded-xl font-medium shadow-sm hover:shadow-md transition-all"
+          style={{ background: "#1B2E6B" }}>
+          Configurer les intégrations
+          <ArrowRight size={15} />
+        </a>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-4 gap-4">
+      {/* Platform guides */}
+      <div className="grid grid-cols-3 gap-4">
         {[
-          { label: "Revenus 30j", value: totalRevenue30d.toLocaleString("fr-FR") + " *", icon: TrendingUp, color: "#1B2E6B", note: "Multi-devises" },
-          { label: "Commandes 30j", value: totalOrders30d.toLocaleString("fr-FR"), icon: Package, color: "#F47920" },
-          { label: "Taux conversion moy.", value: `${avgConversion.toFixed(1)}%`, icon: Percent, color: "#22C55E" },
-          { label: "Croissance moy.", value: `+${avgGrowth.toFixed(0)}%`, icon: TrendingUp, color: "#8B5CF6" },
-        ].map((k) => (
-          <div key={k.label} className="bg-white rounded-2xl p-5 border border-gray-100">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs text-gray-500">{k.label}</p>
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: k.color + "15" }}>
-                <k.icon size={15} style={{ color: k.color }} />
+          {
+            name: "Shopify",
+            icon: "🛍️",
+            desc: "Connectez vos boutiques Shopify par pays. Accès en lecture aux commandes, produits et analytics.",
+            steps: ["Admin Shopify → Apps → Develop apps", "Créer une app privée avec permissions orders + analytics", "Copier Admin API access token dans .env.local"],
+          },
+          {
+            name: "WooCommerce",
+            icon: "🛒",
+            desc: "Pour chaque boutique WooCommerce, créez une clé API en lecture seule.",
+            steps: ["WooCommerce → Settings → Advanced → REST API", "Ajouter une clé avec permissions : Read", "Copier Consumer Key et Consumer Secret dans .env.local"],
+          },
+          {
+            name: "Salesforce CC",
+            icon: "☁️",
+            desc: "Connectez Salesforce Commerce Cloud via l'API OCAPI pour accéder aux données de vente.",
+            steps: ["SFCC Business Manager → Administration → OCAPI Settings", "Créer un client ID avec accès data", "Ajouter SFCC_CLIENT_ID et SFCC_CLIENT_PASSWORD dans .env.local"],
+          },
+        ].map((p) => (
+          <div key={p.name} className="bg-white rounded-2xl border border-gray-100 p-5">
+            <div className="flex items-center gap-3 mb-3">
+              <span className="text-2xl">{p.icon}</span>
+              <div>
+                <h3 className="font-semibold text-gray-800 text-sm">{p.name}</h3>
+                <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                  <div className="w-1.5 h-1.5 rounded-full bg-gray-300" />
+                  Non configuré
+                </div>
               </div>
             </div>
-            <p className="text-2xl font-bold" style={{ color: k.color }}>{k.value}</p>
-            {k.note && <p className="text-[10px] text-gray-400 mt-1">{k.note}</p>}
+            <p className="text-xs text-gray-500 mb-4">{p.desc}</p>
+            <div className="space-y-2">
+              {p.steps.map((step, i) => (
+                <div key={i} className="flex gap-2 text-xs text-gray-600">
+                  <span className="w-4 h-4 rounded-full bg-gray-100 flex items-center justify-center shrink-0 text-gray-500 font-bold text-[10px]">{i + 1}</span>
+                  <span>{step}</span>
+                </div>
+              ))}
+            </div>
+            <a href="/admin" className="mt-4 flex items-center gap-1 text-xs text-blue-500 hover:underline">
+              Guide complet <ExternalLink size={10} />
+            </a>
           </div>
         ))}
       </div>
 
-      {/* Weekly chart */}
-      <div className="bg-white rounded-2xl p-5 border border-gray-100">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="font-semibold text-gray-800">Revenus quotidiens par boutique</h2>
-            <p className="text-xs text-gray-400">7 derniers jours (devises locales)</p>
-          </div>
-          <div className="flex gap-3 text-xs">
-            {[
-              { key: "ma", label: "🇲🇦 Maroc", color: "#1B2E6B" },
-              { key: "ae", label: "🇦🇪 UAE", color: "#F47920" },
-              { key: "sa", label: "🇸🇦 KSA", color: "#22C55E" },
-              { key: "es", label: "🇪🇸 Espagne", color: "#8B5CF6" },
-            ].map((s) => (
-              <div key={s.key} className="flex items-center gap-1.5">
-                <div className="w-2.5 h-2.5 rounded-sm" style={{ background: s.color }} />
-                <span className="text-gray-500">{s.label}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-        <ResponsiveContainer width="100%" height={220}>
-          <AreaChart data={weeklyData}>
-            <defs>
-              {[
-                { id: "gma", color: "#1B2E6B" },
-                { id: "gae", color: "#F47920" },
-                { id: "gsa", color: "#22C55E" },
-                { id: "ges", color: "#8B5CF6" },
-              ].map(({ id, color }) => (
-                <linearGradient key={id} id={id} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={color} stopOpacity={0.15} />
-                  <stop offset="95%" stopColor={color} stopOpacity={0} />
-                </linearGradient>
-              ))}
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f5f5f5" />
-            <XAxis dataKey="day" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-            <Tooltip />
-            {[
-              { key: "ma", color: "#1B2E6B", fill: "url(#gma)" },
-              { key: "ae", color: "#F47920", fill: "url(#gae)" },
-              { key: "sa", color: "#22C55E", fill: "url(#gsa)" },
-              { key: "es", color: "#8B5CF6", fill: "url(#ges)" },
-            ].map((s) => (
-              <Area key={s.key} type="monotone" dataKey={s.key} stroke={s.color} strokeWidth={2} fill={s.fill} />
-            ))}
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-
-      {/* Store cards */}
-      <div className="grid grid-cols-2 gap-4">
-        {ECOMMERCE_STORES.map((store) => {
-          const country = COUNTRIES.find((c) => c.id === store.countryId);
-          return (
-            <div key={store.id} className="bg-white rounded-2xl p-5 border border-gray-100">
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">{country?.flag}</span>
-                  <div>
-                    <h3 className="font-semibold text-gray-800">{country?.name}</h3>
-                    <p className="text-xs text-gray-400">{store.platform} · {store.url}</p>
-                  </div>
-                </div>
-                <button className="text-gray-400 hover:text-gray-600"><ExternalLink size={14} /></button>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  { label: "CA 30j", value: store.revenue30d.toLocaleString(), suffix: store.currency },
-                  { label: "Commandes 30j", value: store.orders30d.toLocaleString(), suffix: "" },
-                  { label: "Conversion", value: `${store.conversionRate}%`, suffix: "" },
-                  { label: "Croissance", value: `+${store.growth}%`, suffix: "", color: "#22C55E" },
-                ].map((m) => (
-                  <div key={m.label} className="bg-gray-50 rounded-lg p-3">
-                    <p className="text-xs text-gray-400 mb-1">{m.label}</p>
-                    <p className="font-bold text-sm" style={{ color: m.color ?? "#1A1A2E" }}>
-                      {m.value} <span className="font-normal text-xs text-gray-400">{m.suffix}</span>
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })}
+      {/* Coming soon note */}
+      <div className="bg-gray-50 rounded-xl border border-gray-100 p-4 text-xs text-gray-500 text-center">
+        Une fois connectées, vous verrez ici les revenus par boutique, le nombre de commandes, les taux de conversion et les tendances semaine par semaine.
       </div>
     </div>
   );

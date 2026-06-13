@@ -1,6 +1,8 @@
 "use client";
 import { useState } from "react";
-import { TICKETS, COUNTRIES, type Ticket, type TicketStatus, type TicketPriority } from "@/lib/data";
+import { INITIAL_TICKETS, COUNTRIES, type TicketStatus, type TicketPriority } from "@/lib/data";
+
+const TICKETS = INITIAL_TICKETS;
 import { Plus, Search, ExternalLink, AlertCircle, Circle, CheckCircle2, Clock } from "lucide-react";
 
 const STATUS_ICONS: Record<TicketStatus, React.ReactNode> = {
@@ -35,6 +37,12 @@ export default function TicketsPage() {
 
   return (
     <div className="space-y-6">
+      {/* Beta notice */}
+      <div className="flex items-center gap-3 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3">
+        <span className="text-xs font-bold bg-yellow-400 text-yellow-900 px-2 py-0.5 rounded-full uppercase tracking-wide">Bêta</span>
+        <p className="text-sm text-yellow-800">L'intégration JIRA est en cours de développement. Les données affichées sont des exemples.</p>
+      </div>
+
       {/* Jira integration banner */}
       <div className="rounded-2xl p-4 border flex items-center gap-4"
         style={{ background: "linear-gradient(135deg, #0052CC08, #0052CC04)", borderColor: "#0052CC30" }}>
@@ -88,7 +96,8 @@ export default function TicketsPage() {
         </div>
         <div className="divide-y divide-gray-50">
           {filtered.map((t) => {
-            const country = t.countryId ? COUNTRIES.find((c) => c.id === t.countryId) : null;
+            const cid = (t as { countryId?: string }).countryId;
+            const country = cid ? COUNTRIES.find((c) => c.id === cid) : null;
             return (
               <div key={t.id} className="px-5 py-4 hover:bg-gray-50/50 flex items-center gap-4">
                 <div className="w-5 shrink-0">{STATUS_ICONS[t.status]}</div>
