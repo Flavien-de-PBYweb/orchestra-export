@@ -1,7 +1,9 @@
 "use client";
-import { COUNTRIES, STORES, INITIAL_TICKETS, INITIAL_MEETINGS, GLOBAL_STATS } from "@/lib/data";
+import { COUNTRIES, STORES, INITIAL_TICKETS, INITIAL_MEETINGS } from "@/lib/data";
 import { useTodoStore, useCodaSyncStore } from "@/lib/store";
-import { Globe, Store, Clock, ArrowUpRight, Users, Zap, CheckCircle, RefreshCw } from "lucide-react";
+import { Globe, Store, Clock, ArrowUpRight, Users, Zap, CheckCircle, RefreshCw, Check } from "lucide-react";
+import dynamic from "next/dynamic";
+const WorldMap = dynamic(() => import("@/components/shared/WorldMap").then(m => m.WorldMap), { ssr: false, loading: () => <div className="h-[340px] bg-gray-50 rounded-2xl border border-gray-100 animate-pulse" /> });
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip
 } from "recharts";
@@ -9,7 +11,7 @@ import {
 const COLORS = ["#1B2E6B", "#E40E20", "#22C55E", "#F59E0B", "#8B5CF6", "#EF4444"];
 
 export default function DashboardPage() {
-  const { todos } = useTodoStore();
+  const { todos, updateTodo } = useTodoStore();
   const { stores: syncedStores, lastSync, isSyncing, syncFromCoda } = useCodaSyncStore();
   // Use synced stores if available, fallback to static seed
   const stores = syncedStores ?? STORES;
@@ -113,22 +115,29 @@ export default function DashboardPage() {
             <h2 className="font-semibold text-gray-900">Actions urgentes</h2>
             <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full">{urgentTodos.length}</span>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-2">
             {urgentTodos.length === 0 ? (
               <p className="text-xs text-gray-400 text-center py-4">Aucune action urgente</p>
             ) : urgentTodos.map((t) => {
               const country = COUNTRIES.find((c) => c.id === t.countryId);
+              const done = t.status === "terminé";
               return (
-                <div key={t.id} className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center shrink-0 text-base">
+                <div key={t.id} className={`flex items-start gap-3 p-2.5 rounded-xl transition-all ${done ? "opacity-50" : "hover:bg-gray-50"}`}>
+                  <button
+                    onClick={() => updateTodo(t.id, { status: done ? "à_faire" : "terminé" })}
+                    className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all ${done ? "bg-green-500 border-green-500" : "border-gray-300 hover:border-green-400"}`}
+                  >
+                    {done && <Check size={11} className="text-white" />}
+                  </button>
+                  <div className="w-7 h-7 rounded-lg bg-gray-50 flex items-center justify-center shrink-0 text-sm">
                     {country?.flag ?? "📋"}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800 truncate">{t.title}</p>
+                    <p className={`text-sm font-medium truncate ${done ? "line-through text-gray-400" : "text-gray-800"}`}>{t.title}</p>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className="text-[10px] text-gray-400">{t.assignee}</span>
                       {t.dueDate && (
-                        <span className={`text-[10px] font-medium ${new Date(t.dueDate) < new Date() ? "text-red-500" : "text-orange-500"}`}>
+                        <span className={`text-[10px] font-medium ${new Date(t.dueDate) < new Date() && !done ? "text-red-500" : "text-orange-400"}`}>
                           · {new Date(t.dueDate).toLocaleDateString("fr-FR")}
                         </span>
                       )}
@@ -171,6 +180,17 @@ export default function DashboardPage() {
             <p className="text-xs text-gray-400">{recentMeeting.participants.join(", ")}</p>
           </div>
         </div>
+      </div>
+
+      {/* World map */}
+      <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h2 className="font-semibold text-gray-900">Présence mondiale</h2>
+            <p className="text-xs text-gray-400">{Object.keys(new Set(stores.map(s => s.country))).length || new Set(stores.map(s => s.country)).size} pays · {stores.length} magasins · taille du cercle = nombre de magasins</p>
+          </div>
+        </div>
+        <WorldMap />
       </div>
 
       {/* Top countries table */}

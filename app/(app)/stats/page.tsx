@@ -2,18 +2,44 @@
 import { COUNTRIES, STORES } from "@/lib/data";
 import { useTodoStore, useCodaSyncStore } from "@/lib/store";
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend
+  PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend,
 } from "recharts";
 
-const COLORS = ["#1B2E6B", "#E40E20", "#22C55E", "#8B5CF6", "#F59E0B", "#EF4444"];
+const PIE_COLORS = ["#1B2E6B", "#E40E20", "#22C55E", "#8B5CF6", "#F59E0B", "#EF4444", "#06B6D4", "#EC4899", "#84CC16", "#F97316"];
+
+const RADIAN = Math.PI / 180;
+function CustomLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent }: {
+  cx: number; cy: number; midAngle: number; innerRadius: number; outerRadius: number; percent: number;
+}) {
+  if (percent < 0.04) return null;
+  const radius = innerRadius + (outerRadius - innerRadius) * 0.55;
+  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+  return (
+    <text x={x} y={y} fill="white" textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight={600}>
+      {`${(percent * 100).toFixed(0)}%`}
+    </text>
+  );
+}
+
+function PieTooltip({ active, payload }: { active?: boolean; payload?: Array<{ name: string; value: number; payload: { total?: number } }> }) {
+  if (!active || !payload?.length) return null;
+  const item = payload[0];
+  const total = item.payload?.total ?? 0;
+  const pct = total > 0 ? ((item.value / total) * 100).toFixed(1) : "—";
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg px-3 py-2 shadow-lg text-xs">
+      <p className="font-semibold text-gray-800">{item.name}</p>
+      <p className="text-gray-600">{item.value} · <span className="font-bold text-blue-700">{pct}%</span></p>
+    </div>
+  );
+}
 
 export default function StatsPage() {
   const { todos } = useTodoStore();
   const { stores: syncedStores, lastSync } = useCodaSyncStore();
   const stores = syncedStores ?? STORES;
 
-  // All stats computed from real store data
   const totalStores = stores.length;
   const storesOpen = stores.filter((s) => s.status === "✅ Ouvert").length;
   const storesEnCours = stores.filter((s) => s.status === "🚧 En cours").length;
@@ -22,39 +48,45 @@ export default function StatsPage() {
   const storesEnRecherche = stores.filter((s) => s.status === "🔍 En recherche cellule").length;
   const totalCountries = new Set(stores.map((s) => s.country)).size;
 
+  // Regions pie
   const allRegions = Array.from(new Set(COUNTRIES.map((c) => c.region)));
-  const byRegion = allRegions.map((r) => ({
-    region: r.length > 12 ? r.substring(0, 12) + "…" : r,
-    fullRegion: r,
-    magasins: stores.filter((s) => COUNTRIES.find((c) => c.codaKey === s.country)?.region === r).length,
-    pays: COUNTRIES.filter((c) => c.region === r && stores.some((s) => s.country === c.codaKey)).length,
-  })).filter((r) => r.magasins > 0).sort((a, b) => b.magasins - a.magasins);
+  const byRegionPie = allRegions.map((r) => ({
+    name: r,
+    value: stores.filter((s) => COUNTRIES.find((c) => c.codaKey === s.country)?.region === r).length,
+    total: totalStores,
+  })).filter((r) => r.value > 0).sort((a, b) => b.value - a.value);
 
+  // Countries pie (all stores)
+  const byCountryPie = COUNTRIES.map((c) => ({
+    name: `${c.flag} ${c.name}`,
+    value: stores.filter((s) => s.country === c.codaKey).length,
+    total: totalStores,
+  })).filter((c) => c.value > 0).sort((a, b) => b.value - a.value);
+
+  // Partnership pie
   const partnershipTypes = ["FRANCHISE", "MASTER FRANCHISE", "DISTRI LIGHT", "COMMISSION AFFILIATION"];
-  const byPartnership = partnershipTypes.map((p) => ({
-    type: p === "COMMISSION AFFILIATION" ? "COMM. AFFIL." : p,
+  const byPartnershipPie = partnershipTypes.map((p, i) => ({
+    name: p === "COMMISSION AFFILIATION" ? "COMM. AFFILIATION" : p,
     value: stores.filter((s) => s.partnership === p).length,
+    total: totalStores,
+    color: PIE_COLORS[i],
   })).filter((p) => p.value > 0);
 
-  const statusGroups = [
-    { name: "Ouverts", value: storesOpen, color: "#22C55E" },
-    { name: "En cours", value: storesEnCours, color: "#E40E20" },
-    { name: "En recherche", value: storesEnRecherche, color: "#F59E0B" },
-    { name: "Suspendus", value: storesSuspendu, color: "#8B5CF6" },
-    { name: "Fermeture", value: storesFermeture, color: "#EF4444" },
+  // Status pie
+  const statusPie = [
+    { name: "Ouverts", value: storesOpen, color: "#22C55E", total: totalStores },
+    { name: "En cours", value: storesEnCours, color: "#E40E20", total: totalStores },
+    { name: "En recherche", value: storesEnRecherche, color: "#F59E0B", total: totalStores },
+    { name: "Suspendus", value: storesSuspendu, color: "#8B5CF6", total: totalStores },
+    { name: "Fermeture", value: storesFermeture, color: "#EF4444", total: totalStores },
   ].filter((s) => s.value > 0);
 
-  const storesByCountry = COUNTRIES.map((c) => ({
-    name: `${c.flag} ${c.name}`,
-    stores: stores.filter((s) => s.country === c.codaKey).length,
-  })).filter((c) => c.stores > 0).sort((a, b) => b.stores - a.stores).slice(0, 10);
-
   const todosByStatus = [
-    { name: "En cours", value: todos.filter((t) => t.status === "en_cours").length },
-    { name: "À faire", value: todos.filter((t) => t.status === "à_faire").length },
-    { name: "Bloqué", value: todos.filter((t) => t.status === "bloqué").length },
-    { name: "Terminé", value: todos.filter((t) => t.status === "terminé").length },
-  ];
+    { name: "En cours", value: todos.filter((t) => t.status === "en_cours").length, color: "#1B2E6B", total: todos.length },
+    { name: "À faire", value: todos.filter((t) => t.status === "à_faire").length, color: "#E40E20", total: todos.length },
+    { name: "Bloqué", value: todos.filter((t) => t.status === "bloqué").length, color: "#8B5CF6", total: todos.length },
+    { name: "Terminé", value: todos.filter((t) => t.status === "terminé").length, color: "#22C55E", total: todos.length },
+  ].filter((t) => t.value > 0);
 
   const syncInfo = lastSync
     ? `Sync Coda : ${new Date(lastSync).toLocaleString("fr-FR")}`
@@ -68,7 +100,7 @@ export default function StatsPage() {
         {syncInfo}
       </div>
 
-      {/* KPIs — all real */}
+      {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: "Pays / marchés actifs", value: totalCountries, sub: `${COUNTRIES.length} dans la base`, color: "#1B2E6B" },
@@ -84,105 +116,146 @@ export default function StatsPage() {
         ))}
       </div>
 
-      {/* Row 1 */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="col-span-2 bg-white rounded-2xl p-5 border border-gray-100">
-          <h2 className="font-semibold text-gray-900 mb-1">Magasins par pays (Top 10)</h2>
-          <p className="text-xs text-gray-500 mb-4">Nombre de points de vente · données Coda réelles</p>
+      {/* Row 1 — Status + Partnership */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-white rounded-2xl p-5 border border-gray-100">
+          <h2 className="font-semibold text-gray-900 mb-1">Statut des magasins</h2>
+          <p className="text-xs text-gray-500 mb-3">Répartition réelle · hover pour le %</p>
           <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={storesByCountry} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={false} />
-              <XAxis type="number" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
-              <YAxis dataKey="name" type="category" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} width={110} />
-              <Tooltip formatter={(v) => [`${String(v)} magasins`]} />
-              <Bar dataKey="stores" fill="#1B2E6B" radius={[0, 4, 4, 0]} />
-            </BarChart>
+            <PieChart>
+              <Pie
+                data={statusPie}
+                dataKey="value"
+                cx="50%"
+                cy="50%"
+                outerRadius={90}
+                innerRadius={45}
+                labelLine={false}
+                label={CustomLabel as never}
+              >
+                {statusPie.map((s, i) => <Cell key={i} fill={s.color} />)}
+              </Pie>
+              <Tooltip content={<PieTooltip />} />
+              <Legend formatter={(v) => <span className="text-xs text-gray-600">{v}</span>} />
+            </PieChart>
           </ResponsiveContainer>
         </div>
 
         <div className="bg-white rounded-2xl p-5 border border-gray-100">
-          <h2 className="font-semibold text-gray-900 mb-1">Statut des magasins</h2>
-          <p className="text-xs text-gray-500 mb-3">Répartition réelle</p>
-          <ResponsiveContainer width="100%" height={160}>
+          <h2 className="font-semibold text-gray-900 mb-1">Type de partenariat</h2>
+          <p className="text-xs text-gray-500 mb-3">Répartition des contrats · hover pour le %</p>
+          <ResponsiveContainer width="100%" height={220}>
             <PieChart>
-              <Pie data={statusGroups} dataKey="value" cx="50%" cy="50%" outerRadius={65} innerRadius={35}>
-                {statusGroups.map((s, i) => <Cell key={i} fill={s.color} />)}
+              <Pie
+                data={byPartnershipPie}
+                dataKey="value"
+                cx="50%"
+                cy="50%"
+                outerRadius={90}
+                innerRadius={45}
+                labelLine={false}
+                label={CustomLabel as never}
+              >
+                {byPartnershipPie.map((p, i) => <Cell key={i} fill={p.color ?? PIE_COLORS[i]} />)}
               </Pie>
-              <Tooltip formatter={(v) => [`${String(v)} magasins`]} />
+              <Tooltip content={<PieTooltip />} />
+              <Legend formatter={(v) => <span className="text-xs text-gray-600">{v}</span>} />
             </PieChart>
           </ResponsiveContainer>
-          <div className="space-y-1 mt-2">
-            {statusGroups.map((s) => (
-              <div key={s.name} className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-sm" style={{ background: s.color }} />
-                  <span className="text-gray-600">{s.name}</span>
-                </div>
-                <span className="font-semibold">{s.value}</span>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
 
-      {/* Row 2 */}
+      {/* Row 2 — Regions + Todos */}
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-white rounded-2xl p-5 border border-gray-100">
-          <h2 className="font-semibold text-gray-900 mb-1">Magasins par région</h2>
-          <p className="text-xs text-gray-500 mb-4">Distribution géographique réelle</p>
-          <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={byRegion}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="region" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} allowDecimals={false} />
-              <Tooltip labelFormatter={(l) => byRegion.find((r) => r.region === l)?.fullRegion ?? l} />
-              <Bar dataKey="magasins" name="Magasins" fill="#1B2E6B" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="pays" name="Pays" fill="#E40E20" radius={[4, 4, 0, 0]} />
-              <Legend />
-            </BarChart>
+          <h2 className="font-semibold text-gray-900 mb-1">Répartition par région</h2>
+          <p className="text-xs text-gray-500 mb-3">Tous les magasins · hover pour le %</p>
+          <ResponsiveContainer width="100%" height={240}>
+            <PieChart>
+              <Pie
+                data={byRegionPie}
+                dataKey="value"
+                cx="50%"
+                cy="50%"
+                outerRadius={95}
+                innerRadius={40}
+                labelLine={false}
+                label={CustomLabel as never}
+              >
+                {byRegionPie.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+              </Pie>
+              <Tooltip content={<PieTooltip />} />
+              <Legend formatter={(v) => <span className="text-xs text-gray-600">{v}</span>} />
+            </PieChart>
           </ResponsiveContainer>
         </div>
 
         <div className="bg-white rounded-2xl p-5 border border-gray-100">
-          <h2 className="font-semibold text-gray-900 mb-4">Type de partenariat</h2>
-          <div className="space-y-4">
-            {byPartnership.map((p, i) => (
-              <div key={p.type}>
-                <div className="flex items-center justify-between text-xs mb-1.5">
-                  <span className="text-gray-700 font-medium">{p.type}</span>
-                  <span className="font-bold text-gray-800">{p.value} <span className="font-normal text-gray-400">magasins</span></span>
-                </div>
-                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full"
-                    style={{
-                      width: `${(p.value / totalStores) * 100}%`,
-                      background: COLORS[i],
-                    }} />
-                </div>
-              </div>
-            ))}
-          </div>
+          <h2 className="font-semibold text-gray-900 mb-1">Plan d'actions — Statuts</h2>
+          <p className="text-xs text-gray-500 mb-3">Source : Coda Planning GANTT · hover pour le %</p>
+          <ResponsiveContainer width="100%" height={240}>
+            <PieChart>
+              <Pie
+                data={todosByStatus}
+                dataKey="value"
+                cx="50%"
+                cy="50%"
+                outerRadius={95}
+                innerRadius={40}
+                labelLine={false}
+                label={CustomLabel as never}
+              >
+                {todosByStatus.map((t, i) => <Cell key={i} fill={t.color} />)}
+              </Pie>
+              <Tooltip content={<PieTooltip />} />
+              <Legend formatter={(v) => <span className="text-xs text-gray-600">{v}</span>} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
 
-          <div className="mt-6 pt-4 border-t border-gray-100">
-            <h3 className="font-semibold text-gray-900 mb-3 text-sm">Plan d'actions</h3>
-            <div className="space-y-3">
-              {todosByStatus.map((t, i) => (
-                <div key={t.name}>
-                  <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="text-gray-700">{t.name}</span>
-                    <span className="font-semibold">{t.value}</span>
-                  </div>
-                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full"
-                      style={{
-                        width: todos.length ? `${(t.value / todos.length) * 100}%` : "0%",
-                        background: COLORS[i],
-                      }} />
-                  </div>
-                </div>
-              ))}
+      {/* Row 3 — All stores by country */}
+      <div className="bg-white rounded-2xl p-5 border border-gray-100">
+        <h2 className="font-semibold text-gray-900 mb-1">Magasins par pays — Tous les pays</h2>
+        <p className="text-xs text-gray-500 mb-4">{byCountryPie.length} pays avec des magasins · hover pour le %</p>
+        <ResponsiveContainer width="100%" height={300}>
+          <PieChart>
+            <Pie
+              data={byCountryPie}
+              dataKey="value"
+              cx="50%"
+              cy="50%"
+              outerRadius={120}
+              innerRadius={50}
+              labelLine={false}
+              label={CustomLabel as never}
+            >
+              {byCountryPie.map((_, i) => <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
+            </Pie>
+            <Tooltip content={<PieTooltip />} />
+            <Legend
+              layout="vertical"
+              align="right"
+              verticalAlign="middle"
+              formatter={(v) => <span className="text-xs text-gray-600">{v}</span>}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+
+        {/* Also show ranked list */}
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          {byCountryPie.map((c, i) => (
+            <div key={c.name} className="flex items-center justify-between text-xs py-1.5 border-b border-gray-50">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
+                <span className="text-gray-700">{c.name}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-gray-800">{c.value}</span>
+                <span className="text-gray-400">({((c.value / totalStores) * 100).toFixed(0)}%)</span>
+              </div>
             </div>
-          </div>
+          ))}
         </div>
       </div>
     </div>

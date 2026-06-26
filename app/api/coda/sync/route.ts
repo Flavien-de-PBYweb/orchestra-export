@@ -132,3 +132,39 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
 }
+
+// PATCH /api/coda/sync — update an existing store row in Coda
+export async function PATCH(req: NextRequest) {
+  const key = getKey();
+  if (!key) return NextResponse.json({ error: "CODA_API_KEY non configurée" }, { status: 401 });
+
+  const body = await req.json();
+  const { codaRowId, ...fields } = body;
+  if (!codaRowId) return NextResponse.json({ error: "codaRowId requis" }, { status: 400 });
+
+  const colMap: Record<string, string> = {
+    name: COLS.name, country: COLS.country, status: COLS.status,
+    partnership: COLS.partnership, product: COLS.product, code: COLS.code,
+    rep: COLS.rep, denom: COLS.denom, address: COLS.address,
+    city: COLS.city, notes: COLS.notes, surface: COLS.surface,
+  };
+
+  const cells = Object.entries(fields)
+    .filter(([k, v]) => colMap[k] && v !== undefined && v !== null)
+    .map(([k, v]) => ({ column: colMap[k], value: k === "surface" && v ? parseFloat(String(v)) : v }));
+
+  try {
+    const res = await fetch(`${CODA_API}/docs/${DOC_ID}/tables/${STORES_TABLE_ID}/rows/${codaRowId}`, {
+      method: "PUT",
+      headers: codaHeaders(key),
+      body: JSON.stringify({ row: { cells } }),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      return NextResponse.json({ error: `Coda error: ${res.status} — ${err}` }, { status: res.status });
+    }
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    return NextResponse.json({ error: String(e) }, { status: 500 });
+  }
+}

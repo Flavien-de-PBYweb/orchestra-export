@@ -22,6 +22,7 @@ export interface Store {
   city: string;
   notes: string;
   surface: string;
+  codaRowId?: string; // Coda row ID for updates
 }
 
 export interface Country {
