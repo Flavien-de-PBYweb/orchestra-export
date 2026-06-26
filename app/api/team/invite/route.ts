@@ -1,7 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Resend } from "resend";
-
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,6 +12,9 @@ export async function POST(req: NextRequest) {
     if (!process.env.RESEND_API_KEY) {
       return NextResponse.json({ ok: true, emailSent: false, message: "Compte créé (email non envoyé — RESEND_API_KEY manquante)" });
     }
+
+    const { Resend } = await import("resend");
+    const resend = new Resend(process.env.RESEND_API_KEY);
 
     const loginUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? "https://orchestra-export.vercel.app"}/login`;
 
