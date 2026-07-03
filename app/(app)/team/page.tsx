@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { COUNTRIES } from "@/lib/data";
 import { useAuthStore } from "@/lib/store";
-import { User, Mail, Shield, CheckCircle, XCircle, Plus, Edit, X, Loader2, Eye, EyeOff, Trash2 } from "lucide-react";
+import { User, Mail, Shield, CheckCircle, XCircle, Plus, Edit, X, Loader2, Eye, EyeOff, Trash2, Copy, Share2 } from "lucide-react";
 
 interface TeamUser {
   id: string;
@@ -195,12 +195,84 @@ function UserModal({
   );
 }
 
+function InviteShareModal({ name, email, password, onClose }: {
+  name: string; email: string; password: string; onClose: () => void;
+}) {
+  const loginUrl = "https://orchestra-export.vercel.app/login";
+  const [copied, setCopied] = useState(false);
+
+  const message = `Bonjour ${name} 👋
+
+Tu as été invité(e) sur l'outil Orchestra Export International.
+
+🔗 Lien de connexion : ${loginUrl}
+📧 Email : ${email}
+🔑 Mot de passe temporaire : ${password}
+
+Pense à changer ton mot de passe après ta première connexion.
+
+— Équipe Orchestra Export`;
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(message);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "#1B2E6B" }}>
+              <Share2 size={18} className="text-white" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-gray-900">Partager l'invitation</h2>
+              <p className="text-xs text-gray-400">Copiez et envoyez par le canal de votre choix</p>
+            </div>
+          </div>
+          <button onClick={onClose}><X size={20} className="text-gray-400" /></button>
+        </div>
+
+        {/* Message preview */}
+        <div className="bg-gray-50 rounded-xl p-4 mb-4 border border-gray-100">
+          <pre className="text-xs text-gray-700 whitespace-pre-wrap font-sans leading-relaxed">{message}</pre>
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-3">
+          <button
+            onClick={handleCopy}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold text-white transition-all"
+            style={{ background: copied ? "#16a34a" : "#1B2E6B" }}>
+            {copied ? <CheckCircle size={16} /> : <Copy size={16} />}
+            {copied ? "Copié !" : "Copier le message"}
+          </button>
+          <button
+            onClick={() => {
+              window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, "_blank");
+            }}
+            className="px-4 py-3 rounded-xl text-sm font-semibold border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all flex items-center gap-2">
+            <span>💬</span> WhatsApp
+          </button>
+        </div>
+
+        <button onClick={onClose} className="w-full mt-3 text-xs text-gray-400 hover:text-gray-600 py-2">
+          Fermer
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function TeamPage() {
   const { user: currentUser } = useAuthStore();
   const [users, setUsers] = useState<TeamUser[]>(INITIAL_USERS);
   const [editingUser, setEditingUser] = useState<TeamUser | null>(null);
   const [isNew, setIsNew] = useState(false);
-  const [inviteStatus, setInviteStatus] = useState<{ id: string; status: "sending" | "sent" | "error"; msg?: string } | null>(null);
+  const [inviteCard, setInviteCard] = useState<{ name: string; email: string; password: string } | null>(null);
 
   const isAdmin = currentUser?.role === "admin";
 
@@ -211,24 +283,8 @@ export default function TeamPage() {
       setUsers((prev) => prev.map((p) => (p.id === u.id ? u : p)));
     }
 
-    if (sendInvite && isNew) {
-      setInviteStatus({ id: u.id, status: "sending" });
-      try {
-        const res = await fetch("/api/team/invite", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: u.name, email: u.email, role: ROLE_LABELS[u.role], tempPassword: u.password }),
-        });
-        const data = await res.json();
-        if (data.ok) {
-          setInviteStatus({ id: u.id, status: "sent", msg: data.emailSent ? "Invitation envoyée !" : data.message });
-        } else {
-          setInviteStatus({ id: u.id, status: "error", msg: data.error });
-        }
-      } catch (e) {
-        setInviteStatus({ id: u.id, status: "error", msg: String(e) });
-      }
-      setTimeout(() => setInviteStatus(null), 5000);
+    if (sendInvite && isNew && u.password) {
+      setInviteCard({ name: u.name, email: u.email, password: u.password });
     }
   };
 
@@ -253,17 +309,14 @@ export default function TeamPage() {
         )}
       </div>
 
-      {/* Invite status toast */}
-      {inviteStatus && (
-        <div className={`rounded-xl px-4 py-3 text-sm flex items-center gap-3 ${
-          inviteStatus.status === "sending" ? "bg-blue-50 text-blue-700 border border-blue-200"
-          : inviteStatus.status === "sent" ? "bg-green-50 text-green-700 border border-green-200"
-          : "bg-red-50 text-red-700 border border-red-200"
-        }`}>
-          {inviteStatus.status === "sending" && <Loader2 size={14} className="animate-spin" />}
-          {inviteStatus.status === "sent" && <CheckCircle size={14} />}
-          {inviteStatus.status === "sending" ? "Envoi de l'invitation en cours…" : inviteStatus.msg}
-        </div>
+      {/* Invite share modal */}
+      {inviteCard && (
+        <InviteShareModal
+          name={inviteCard.name}
+          email={inviteCard.email}
+          password={inviteCard.password}
+          onClose={() => setInviteCard(null)}
+        />
       )}
 
       {/* Role legend */}
