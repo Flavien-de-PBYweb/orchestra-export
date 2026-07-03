@@ -383,37 +383,45 @@ export default function CountryDetailPage({ params }: { params: Promise<{ id: st
         </div>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-4 gap-4">
-        <div className="bg-white rounded-xl border border-gray-100 p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <StoreIcon size={14} className="text-gray-400" />
-            <span className="text-xs text-gray-500">Total magasins</span>
+      {/* KPIs — dynamiques : 1 carte par statut présent + actions */}
+      {(() => {
+        const STATUS_META: Record<string, { dot: string; textColor: string; label: string }> = {
+          "✅ Ouvert":                { dot: "bg-green-500",  textColor: "text-green-600",  label: "Ouverts" },
+          "🚧 En cours":              { dot: "bg-blue-500",   textColor: "text-blue-600",   label: "En cours" },
+          "🔍 En recherche cellule":  { dot: "bg-yellow-500", textColor: "text-yellow-600", label: "En recherche" },
+          "⏸️ Suspendu":              { dot: "bg-orange-400", textColor: "text-orange-500", label: "Stand by" },
+          "FERMETURE A VENIR":        { dot: "bg-red-400",    textColor: "text-red-500",    label: "Fermeture prévue" },
+          "❌ Fermé":                 { dot: "bg-gray-400",   textColor: "text-gray-600",   label: "Fermés" },
+        };
+        const presentStatuses = Object.keys(STATUS_META).filter(
+          (s) => stores.some((st) => st.status === s)
+        );
+        const cols = presentStatuses.length + 1; // +1 for actions
+        return (
+          <div className={`grid gap-4`} style={{ gridTemplateColumns: `repeat(${Math.min(cols, 5)}, minmax(0, 1fr))` }}>
+            {presentStatuses.map((status) => {
+              const meta = STATUS_META[status];
+              const count = stores.filter((s) => s.status === status).length;
+              return (
+                <div key={status} className="bg-white rounded-xl border border-gray-100 p-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className={`w-2.5 h-2.5 rounded-full ${meta.dot}`} />
+                    <span className="text-xs text-gray-500">{meta.label}</span>
+                  </div>
+                  <div className={`text-2xl font-bold ${meta.textColor}`}>{count}</div>
+                </div>
+              );
+            })}
+            <div className="bg-white rounded-xl border border-gray-100 p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Flag size={14} className="text-orange-400" />
+                <span className="text-xs text-gray-500">Actions en cours</span>
+              </div>
+              <div className="text-2xl font-bold text-orange-500">{countryTodos.filter((t) => t.status !== "terminé").length}</div>
+            </div>
           </div>
-          <div className="text-2xl font-bold text-gray-800">{stores.length}</div>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-100 p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <div className="w-2.5 h-2.5 rounded-full bg-green-500" />
-            <span className="text-xs text-gray-500">Ouverts</span>
-          </div>
-          <div className="text-2xl font-bold text-green-600">{openStores}</div>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-100 p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-            <span className="text-xs text-gray-500">En cours</span>
-          </div>
-          <div className="text-2xl font-bold text-blue-600">{stores.filter((s) => s.status === "🚧 En cours").length}</div>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-100 p-4">
-          <div className="flex items-center gap-2 mb-1">
-            <Flag size={14} className="text-orange-400" />
-            <span className="text-xs text-gray-500">Actions en cours</span>
-          </div>
-          <div className="text-2xl font-bold text-orange-500">{countryTodos.filter((t) => t.status !== "terminé").length}</div>
-        </div>
-      </div>
+        );
+      })()}
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-gray-100">
