@@ -1,31 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 
-export async function POST(req: NextRequest) {
-  try {
-    const { name, email, role, tempPassword } = await req.json();
+async function sendInviteEmail({
+  name, email, role, tempPassword, loginUrl,
+}: {
+  name: string; email: string; role: string;
+  tempPassword: string; loginUrl: string;
+}) {
+  const roleLabel = role === "admin" ? "Administrateur" : role === "manager" ? "Manager" : "Membre";
+  const year = new Date().getFullYear();
 
-    if (!email || !name) {
-      return NextResponse.json({ error: "Email et nom requis" }, { status: 400 });
-    }
-
-    // If no Resend key, skip email but still return success
-    if (!process.env.RESEND_API_KEY) {
-      console.warn("[invite] RESEND_API_KEY manquante — email non envoyé");
-      return NextResponse.json({
-        ok: true,
-        emailSent: false,
-        message: "Compte créé (email non envoyé — ajoutez RESEND_API_KEY dans les variables Vercel)",
-      });
-    }
-
-    const { Resend } = await import("resend");
-    const resend = new Resend(process.env.RESEND_API_KEY);
-
-    const loginUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? "https://orchestra-export.vercel.app"}/login`;
-    const roleLabel = role === "admin" ? "Administrateur" : role === "manager" ? "Manager" : "Membre";
-    const year = new Date().getFullYear();
-
-    const html = `<!DOCTYPE html>
+  const html = `<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
@@ -43,15 +27,11 @@ export async function POST(req: NextRequest) {
             <table width="100%" cellpadding="0" cellspacing="0">
               <tr>
                 <td>
-                  <!-- Logo text -->
-                  <div style="display:inline-block;">
-                    <span style="font-size:26px;font-weight:900;color:#FFFFFF;letter-spacing:-1px;">ORCHESTRA</span>
-                    <br/>
-                    <span style="font-size:10px;font-weight:600;color:#FFCC00;letter-spacing:3px;text-transform:uppercase;">Export International</span>
-                  </div>
+                  <span style="font-size:26px;font-weight:900;color:#FFFFFF;letter-spacing:-1px;">ORCHESTRA</span>
+                  <br/>
+                  <span style="font-size:10px;font-weight:600;color:#FFCC00;letter-spacing:3px;text-transform:uppercase;">Export International</span>
                 </td>
                 <td align="right">
-                  <!-- Red dot accent -->
                   <div style="width:48px;height:48px;background:#E40E20;border-radius:50%;display:inline-block;"></div>
                 </td>
               </tr>
@@ -60,18 +40,12 @@ export async function POST(req: NextRequest) {
         </tr>
 
         <!-- Red accent bar -->
-        <tr>
-          <td style="background:#E40E20;height:4px;"></td>
-        </tr>
+        <tr><td style="background:#E40E20;height:4px;"></td></tr>
 
         <!-- Body -->
         <tr>
           <td style="background:#FFFFFF;padding:40px 40px 32px;border-left:1px solid #E2E8F0;border-right:1px solid #E2E8F0;">
-
-            <!-- Greeting -->
-            <h1 style="margin:0 0 8px;font-size:24px;font-weight:800;color:#1A1A2E;line-height:1.2;">
-              Bienvenue, ${name}&nbsp;!
-            </h1>
+            <h1 style="margin:0 0 8px;font-size:24px;font-weight:800;color:#1A1A2E;">Bienvenue, ${name}&nbsp;!</h1>
             <p style="margin:0 0 28px;font-size:15px;color:#6B7280;line-height:1.6;">
               Votre accès à l'outil de pilotage <strong style="color:#1B2E6B;">Orchestra Export International</strong> vient d'être créé.
             </p>
@@ -113,17 +87,15 @@ export async function POST(req: NextRequest) {
             <table cellpadding="0" cellspacing="0" style="margin-bottom:32px;">
               <tr>
                 <td style="background:#E40E20;border-radius:12px;">
-                  <a href="${loginUrl}"
-                    style="display:inline-block;padding:16px 36px;font-size:15px;font-weight:700;color:#FFFFFF;text-decoration:none;letter-spacing:0.2px;">
+                  <a href="${loginUrl}" style="display:inline-block;padding:16px 36px;font-size:15px;font-weight:700;color:#FFFFFF;text-decoration:none;">
                     Accéder à mon espace →
                   </a>
                 </td>
               </tr>
             </table>
 
-            <!-- URL fallback -->
             <p style="margin:0;font-size:12px;color:#9CA3AF;">
-              Ou copiez ce lien dans votre navigateur :<br/>
+              Ou copiez ce lien :<br/>
               <a href="${loginUrl}" style="color:#1B2E6B;word-break:break-all;">${loginUrl}</a>
             </p>
           </td>
@@ -134,40 +106,74 @@ export async function POST(req: NextRequest) {
           <td style="background:#1B2E6B;border-radius:0 0 16px 16px;padding:20px 40px;">
             <table width="100%" cellpadding="0" cellspacing="0">
               <tr>
-                <td>
-                  <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.5);">
-                    © ${year} Orchestra Prémaman — Document confidentiel
-                  </p>
-                </td>
-                <td align="right">
-                  <span style="font-size:11px;color:#FFCC00;font-weight:600;">Export International</span>
-                </td>
+                <td><p style="margin:0;font-size:11px;color:rgba(255,255,255,0.5);">© ${year} Orchestra Prémaman — Document confidentiel</p></td>
+                <td align="right"><span style="font-size:11px;color:#FFCC00;font-weight:600;">Export International</span></td>
               </tr>
             </table>
           </td>
         </tr>
-
       </table>
     </td></tr>
   </table>
 </body>
 </html>`;
 
-    const { error } = await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL ?? "Orchestra Export <onboarding@resend.dev>",
+  // ── Gmail via Nodemailer ──────────────────────────────────────────────────
+  const gmailUser = process.env.GMAIL_USER;
+  const gmailPass = process.env.GMAIL_APP_PASSWORD;
+
+  if (gmailUser && gmailPass) {
+    const nodemailer = await import("nodemailer");
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: { user: gmailUser, pass: gmailPass },
+    });
+    await transporter.sendMail({
+      from: `"Orchestra Export" <${gmailUser}>`,
       to: email,
-      subject: `🎯 Votre accès Orchestra Export International — ${name}`,
+      subject: `🎯 Votre accès Orchestra Export International`,
       html,
     });
+    return { sent: true, via: "gmail" };
+  }
 
-    if (error) {
-      console.error("[invite] Resend error:", error);
-      return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+  // ── Resend fallback ───────────────────────────────────────────────────────
+  const resendKey = process.env.RESEND_API_KEY;
+  if (resendKey) {
+    const { Resend } = await import("resend");
+    const resend = new Resend(resendKey);
+    const from = process.env.RESEND_FROM_EMAIL ?? "Orchestra Export <onboarding@resend.dev>";
+    const { error } = await resend.emails.send({ from, to: email, subject: `🎯 Votre accès Orchestra Export International`, html });
+    if (error) throw new Error(error.message);
+    return { sent: true, via: "resend" };
+  }
+
+  return { sent: false, via: null };
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const { name, email, role, tempPassword } = await req.json();
+
+    if (!email || !name) {
+      return NextResponse.json({ error: "Email et nom requis" }, { status: 400 });
     }
 
-    return NextResponse.json({ ok: true, emailSent: true });
+    const loginUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? "https://orchestra-export.vercel.app"}/login`;
+
+    const { sent, via } = await sendInviteEmail({ name, email, role, tempPassword, loginUrl });
+
+    if (!sent) {
+      return NextResponse.json({
+        ok: true,
+        emailSent: false,
+        message: "Compte créé — email non envoyé (GMAIL_USER ou RESEND_API_KEY manquant)",
+      });
+    }
+
+    return NextResponse.json({ ok: true, emailSent: true, via });
   } catch (e) {
-    console.error("[invite] Unexpected error:", e);
+    console.error("[invite]", e);
     return NextResponse.json({ ok: false, error: String(e) }, { status: 500 });
   }
 }
