@@ -127,7 +127,32 @@ export async function POST(req: NextRequest) {
     }
 
     const data = await res.json();
-    return NextResponse.json({ ok: true, addedRows: data.addedRowIds?.length ?? 1 });
+    const codaRowId = data.addedRowIds?.[0] ?? null;
+    return NextResponse.json({ ok: true, codaRowId, addedRows: data.addedRowIds?.length ?? 1 });
+  } catch (e) {
+    return NextResponse.json({ error: String(e) }, { status: 500 });
+  }
+}
+
+// DELETE /api/coda/sync?rowId=xxx — delete a store row from Coda
+export async function DELETE(req: NextRequest) {
+  const key = getKey();
+  if (!key) return NextResponse.json({ error: "CODA_API_KEY non configurée" }, { status: 401 });
+
+  const { searchParams } = new URL(req.url);
+  const rowId = searchParams.get("rowId");
+  if (!rowId) return NextResponse.json({ error: "rowId requis" }, { status: 400 });
+
+  try {
+    const res = await fetch(`${CODA_API}/docs/${DOC_ID}/tables/${STORES_TABLE_ID}/rows/${rowId}`, {
+      method: "DELETE",
+      headers: codaHeaders(key),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      return NextResponse.json({ error: `Coda error: ${res.status} — ${err}` }, { status: res.status });
+    }
+    return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }

@@ -1,7 +1,7 @@
 "use client";
 import { COUNTRIES, STORES, INITIAL_MEETINGS } from "@/lib/data";
 import { useTodoStore, useCodaSyncStore } from "@/lib/store";
-import { Globe, Store, Clock, ArrowUpRight, Users, Zap, CheckCircle, RefreshCw, Check } from "lucide-react";
+import { Globe, Store, Clock, ArrowUpRight, Users, Zap, CheckCircle, RefreshCw, Check, Video } from "lucide-react";
 import dynamic from "next/dynamic";
 const WorldMap = dynamic(() => import("@/components/shared/WorldMap").then(m => m.WorldMap), {
   ssr: false,
@@ -283,32 +283,44 @@ export default function DashboardPage() {
         <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-gray-900">Dernière réunion</h2>
-            <span className="text-xs text-gray-400">{new Date(recentMeeting.date).toLocaleDateString("fr-FR")}</span>
           </div>
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
-              <Zap size={15} className="text-blue-500" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-800">{recentMeeting.title}</p>
-              <p className="text-xs text-gray-400">{recentMeeting.duration} min</p>
-            </div>
-          </div>
-          <p className="text-xs text-gray-600 bg-gray-50 rounded-lg p-3 mb-3 leading-relaxed line-clamp-3">
-            {recentMeeting.summary}
-          </p>
-          <div className="space-y-1.5">
-            {recentMeeting.actionItems?.slice(0, 3).map((a, i) => (
-              <div key={i} className="flex items-start gap-2 text-xs text-gray-600">
-                <CheckCircle size={12} className="text-green-500 mt-0.5 shrink-0" />
-                {a}
+          {recentMeeting ? (
+            <>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-gray-400">{new Date(recentMeeting.date).toLocaleDateString("fr-FR")}</span>
               </div>
-            ))}
-          </div>
-          <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-gray-50">
-            <Users size={11} className="text-gray-400" />
-            <p className="text-xs text-gray-400">{recentMeeting.participants.join(", ")}</p>
-          </div>
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+                  <Zap size={15} className="text-blue-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-800">{recentMeeting.title}</p>
+                  <p className="text-xs text-gray-400">{recentMeeting.duration} min</p>
+                </div>
+              </div>
+              <p className="text-xs text-gray-600 bg-gray-50 rounded-lg p-3 mb-3 leading-relaxed line-clamp-3">
+                {recentMeeting.summary}
+              </p>
+              <div className="space-y-1.5">
+                {recentMeeting.actionItems?.slice(0, 3).map((a, i) => (
+                  <div key={i} className="flex items-start gap-2 text-xs text-gray-600">
+                    <CheckCircle size={12} className="text-green-500 mt-0.5 shrink-0" />
+                    {a}
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-gray-50">
+                <Users size={11} className="text-gray-400" />
+                <p className="text-xs text-gray-400">{recentMeeting.participants.join(", ")}</p>
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-6 text-gray-400">
+              <Video size={28} className="mx-auto mb-2 opacity-30" />
+              <p className="text-sm">Aucune réunion enregistrée</p>
+              <a href="/meetings" className="text-xs text-blue-500 hover:underline mt-1 block">Synchroniser Fireflies →</a>
+            </div>
+          )}
         </div>
       </div>
 

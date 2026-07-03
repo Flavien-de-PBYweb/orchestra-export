@@ -70,10 +70,11 @@ function AddStoreModal({ onClose }: { onClose: () => void }) {
     if (!storeName.trim() || !effectiveCountry.trim()) return;
     setLoading(true);
     const res = await addStoreToCoda({
+      id: `s${Date.now()}`,
       name: storeName,
       country: effectiveCountry,
-      status: status as never,
-      partnership: partnership as never,
+      status: status as import("@/lib/data").StoreStatus,
+      partnership: partnership as import("@/lib/data").PartnershipType,
       product: "",
       code: "",
       rep,

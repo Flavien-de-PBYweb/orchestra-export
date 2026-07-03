@@ -205,18 +205,20 @@ export const useFirefliesStore = create<FirefliesStore>()(
 import type { Store } from "./data";
 
 interface CodaSyncStore {
-  stores: Store[] | null;       // null = not synced yet, use static seed
+  stores: Store[] | null;
   lastSync: string | null;
   isSyncing: boolean;
   error: string | null;
   syncFromCoda: () => Promise<void>;
-  addStoreToCoda: (store: Omit<Store, "id">) => Promise<{ ok: boolean; error?: string }>;
+  addStoreToCoda: (store: Store) => Promise<{ ok: boolean; error?: string; codaRowId?: string }>;
+  updateStoreCoda: (store: Store) => Promise<{ ok: boolean; error?: string }>;
+  deleteStoreCoda: (storeId: string, codaRowId?: string) => Promise<{ ok: boolean; error?: string }>;
   setStores: (stores: Store[]) => void;
 }
 
 export const useCodaSyncStore = create<CodaSyncStore>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       stores: null,
       lastSync: null,
       isSyncing: false,
@@ -245,6 +247,42 @@ export const useCodaSyncStore = create<CodaSyncStore>()(
           });
           const data = await res.json();
           if (!res.ok) return { ok: false, error: data.error };
+          // Ajouter immédiatement dans le store local avec le codaRowId retourné
+          const newStore = { ...store, id: data.codaRowId ?? store.id, codaRowId: data.codaRowId ?? store.id };
+          const current = get().stores ?? [];
+          set({ stores: [...current, newStore] });
+          return { ok: true, codaRowId: data.codaRowId };
+        } catch (e) {
+          return { ok: false, error: String(e) };
+        }
+      },
+      updateStoreCoda: async (store) => {
+        try {
+          const codaRowId = store.codaRowId ?? store.id;
+          const res = await fetch("/api/coda/sync", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...store, codaRowId }),
+          });
+          const data = await res.json();
+          if (!res.ok) return { ok: false, error: data.error };
+          // Mettre à jour dans le store local
+          const current = get().stores ?? [];
+          set({ stores: current.map((s) => (s.id === store.id || s.codaRowId === codaRowId) ? store : s) });
+          return { ok: true };
+        } catch (e) {
+          return { ok: false, error: String(e) };
+        }
+      },
+      deleteStoreCoda: async (storeId, codaRowId) => {
+        try {
+          const rowId = codaRowId ?? storeId;
+          const res = await fetch(`/api/coda/sync?rowId=${encodeURIComponent(rowId)}`, { method: "DELETE" });
+          const data = await res.json();
+          if (!res.ok) return { ok: false, error: data.error };
+          // Supprimer du store local immédiatement
+          const current = get().stores ?? [];
+          set({ stores: current.filter((s) => s.id !== storeId && s.codaRowId !== rowId) });
           return { ok: true };
         } catch (e) {
           return { ok: false, error: String(e) };

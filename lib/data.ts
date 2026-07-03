@@ -232,14 +232,8 @@ export const USERS: User[] = [
 
 // ── Todos (editable via UI, synced to Coda) ───────────────────────────────────
 
-export const INITIAL_TODOS: Todo[] = [
-  { id: "t1", countryId: "roumanie", title: "Signature contrat partenaire Roumanie", description: "Finaliser le contrat avec le partenaire master franchise", status: "en_cours", priority: "haute", dueDate: "2026-07-30", assignee: "Laura Fernandez", createdAt: "2026-05-01", updatedAt: "2026-06-10", tags: ["contrat", "juridique"] },
-  { id: "t2", countryId: "albanie", title: "Ouverture DURES — recherche cellule active", status: "en_cours", priority: "haute", dueDate: "2026-08-15", assignee: "Laura Fernandez", createdAt: "2026-05-15", updatedAt: "2026-06-12" },
-  { id: "t3", countryId: "algerie", title: "Ouverture Constantine — suivi travaux", status: "en_cours", priority: "haute", dueDate: "2026-07-31", assignee: "Laura Fernandez", createdAt: "2026-06-01", updatedAt: "2026-06-12" },
-  { id: "t4", countryId: "allemagne", title: "Ouverture Berlin WILMA — finalisation", status: "en_cours", priority: "moyenne", dueDate: "2026-08-01", assignee: "Laura Fernandez", createdAt: "2026-05-20", updatedAt: "2026-06-08" },
-  { id: "t5", countryId: "croatie", title: "Fermeture Zagreb City Center East — procédure", description: "Gérer la fermeture et communication partenaire", status: "à_faire", priority: "haute", dueDate: "2026-07-15", assignee: "Laura Fernandez", createdAt: "2026-06-01", updatedAt: "2026-06-01" },
-  { id: "t6", countryId: "georgie", title: "Ouverture Rustavelli Mall — suivi DEV IT", status: "en_cours", priority: "moyenne", assignee: "Laura Fernandez", createdAt: "2026-04-15", updatedAt: "2026-06-10" },
-];
+// Vide — toutes les tâches viennent du Coda via syncFromCoda()
+export const INITIAL_TODOS: Todo[] = [];
 
 // ── Tickets ───────────────────────────────────────────────────────────────────
 
@@ -263,7 +257,5 @@ export const INITIAL_NOTES: Note[] = [
 
 // ── Meetings ──────────────────────────────────────────────────────────────────
 
-export const INITIAL_MEETINGS: Meeting[] = [
-  { id: "m1", title: "Point hebdo Export — Juin 2026", date: "2026-06-09", duration: 60, participants: ["Laura Fernandez"], summary: "Revue avancement ouvertures en cours. Point Roumanie, Albanie (DURES), suivi Allemagne WILMA.", actionItems: ["Relancer partenaire Roumanie avant 15/06", "Suivi travaux DURES — visite prévue juillet"], countryIds: ["roumanie", "albanie", "allemagne"] },
-  { id: "m2", title: "Audit site Algérie — Constantine & Annaba", date: "2026-06-02", duration: 45, participants: ["Laura Fernandez", "M. AIT MEZIANE LYES"], summary: "Revue avancement chantiers Constantine et Annaba. Ouvertures prévues Q3 2026.", actionItems: ["Envoyer plan implantation Constantine", "Confirmer date livraison travaux Annaba"], countryIds: ["algerie"] },
-];
+// Vide — les réunions viennent de Fireflies via syncFromFireflies()
+export const INITIAL_MEETINGS: Meeting[] = [];

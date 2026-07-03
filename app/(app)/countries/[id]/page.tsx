@@ -1,9 +1,9 @@
 "use client";
 import { use, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getCountryById, getStoresForCountry, INITIAL_TODOS, type Store, type StoreStatus } from "@/lib/data";
+import { getCountryById, STORES, type Store, type StoreStatus } from "@/lib/data";
 import { useTodoStore, useCodaSyncStore } from "@/lib/store";
-import { ArrowLeft, Download, Store as StoreIcon, MapPin, User, Package, Edit, X, Loader2, Flag, Calendar, Plus } from "lucide-react";
+import { ArrowLeft, Download, Store as StoreIcon, MapPin, User, Package, Edit, X, Loader2, Flag, Calendar, Plus, Trash2, ExternalLink } from "lucide-react";
 import jsPDF from "jspdf";
 
 const STATUS_COLORS: Record<StoreStatus, string> = {
@@ -22,29 +22,82 @@ const PARTNERSHIP_COLORS: Record<string, string> = {
   "COMMISSION AFFILIATION": "bg-sky-100 text-sky-700",
 };
 
-function EditStoreModal({ store, onClose, onSave }: { store: Store; onClose: () => void; onSave: (s: Store) => void }) {
+const STORE_FORMATS = [
+  "Stand alone", "Centre commercial", "Galerie marchande",
+  "Corner", "Shop-in-shop", "Outlet", "Pop-up", "Flagship",
+];
+
+function StoreFormFields({ form, set }: { form: Partial<Store>; set: (f: keyof Store, v: string) => void }) {
+  return (
+    <div className="space-y-3">
+      <div><label className="text-xs font-medium text-gray-700 mb-1 block">Nom du magasin *</label>
+        <input value={form.name ?? ""} onChange={(e) => set("name", e.target.value)} autoFocus className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none" /></div>
+      <div className="grid grid-cols-2 gap-3">
+        <div><label className="text-xs font-medium text-gray-700 mb-1 block">Ville</label>
+          <input value={form.city ?? ""} onChange={(e) => set("city", e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none" /></div>
+        <div><label className="text-xs font-medium text-gray-700 mb-1 block">Code magasin</label>
+          <input value={form.code ?? ""} onChange={(e) => set("code", e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none font-mono" /></div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div><label className="text-xs font-medium text-gray-700 mb-1 block">Statut</label>
+          <select value={form.status ?? ""} onChange={(e) => set("status", e.target.value as StoreStatus)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none cursor-pointer">
+            {(["✅ Ouvert","🚧 En cours","🔍 En recherche cellule","⏸️ Suspendu","❌ Fermé","FERMETURE A VENIR"] as StoreStatus[]).map((s) => <option key={s} value={s}>{s}</option>)}
+          </select></div>
+        <div><label className="text-xs font-medium text-gray-700 mb-1 block">Partenariat</label>
+          <select value={form.partnership ?? ""} onChange={(e) => set("partnership", e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none cursor-pointer">
+            <option value="">—</option>
+            {["FRANCHISE","MASTER FRANCHISE","DISTRI LIGHT","COMMISSION AFFILIATION"].map((p) => <option key={p} value={p}>{p}</option>)}
+          </select></div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div><label className="text-xs font-medium text-gray-700 mb-1 block">Format magasin</label>
+          <select value={form.product ?? ""} onChange={(e) => set("product", e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none cursor-pointer">
+            <option value="">—</option>
+            {STORE_FORMATS.map((f) => <option key={f} value={f}>{f}</option>)}
+          </select></div>
+        <div><label className="text-xs font-medium text-gray-700 mb-1 block">Surface (m²)</label>
+          <input value={form.surface ?? ""} onChange={(e) => set("surface", e.target.value)} type="number" placeholder="ex: 450" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none" /></div>
+      </div>
+      <div><label className="text-xs font-medium text-gray-700 mb-1 block">Représentant légal</label>
+        <input value={form.rep ?? ""} onChange={(e) => set("rep", e.target.value)} placeholder="Nom du représentant" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none" /></div>
+      <div><label className="text-xs font-medium text-gray-700 mb-1 block">Dénomination sociale</label>
+        <input value={form.denom ?? ""} onChange={(e) => set("denom", e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none" /></div>
+      <div><label className="text-xs font-medium text-gray-700 mb-1 block">Adresse</label>
+        <input value={form.address ?? ""} onChange={(e) => set("address", e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none" /></div>
+      <div><label className="text-xs font-medium text-gray-700 mb-1 block">Notes</label>
+        <textarea value={form.notes ?? ""} onChange={(e) => set("notes", e.target.value)} rows={2} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none resize-none" /></div>
+    </div>
+  );
+}
+
+function EditStoreModal({ store, onClose, onSave, onDelete }: {
+  store: Store; onClose: () => void;
+  onSave: (s: Store) => void; onDelete: () => void;
+}) {
+  const { updateStoreCoda, deleteStoreCoda } = useCodaSyncStore();
   const [form, setForm] = useState({ ...store });
   const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const set = (f: keyof Store, v: string) => setForm((p) => ({ ...p, [f]: v }));
 
   const handleSave = async () => {
     setLoading(true);
-    try {
-      if (form.codaRowId) {
-        const res = await fetch("/api/coda/sync", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
-        });
-        const data = await res.json();
-        if (!data.ok) { setResult(`Erreur Coda: ${data.error}`); setLoading(false); return; }
-      }
-      onSave(form);
-      setResult("Sauvegardé !");
-      setTimeout(onClose, 800);
-    } catch (e) { setResult(String(e)); }
+    const res = await updateStoreCoda(form);
+    if (!res.ok) { setResult(`Erreur Coda: ${res.error}`); setLoading(false); return; }
+    onSave(form);
+    setResult("Sauvegardé !");
+    setTimeout(onClose, 600);
     setLoading(false);
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    const res = await deleteStoreCoda(store.id, store.codaRowId);
+    if (!res.ok) { setResult(`Erreur suppression: ${res.error}`); setDeleting(false); return; }
+    onDelete();
+    onClose();
   };
 
   return (
@@ -55,49 +108,33 @@ function EditStoreModal({ store, onClose, onSave }: { store: Store; onClose: () 
           <button onClick={onClose}><X size={20} className="text-gray-400" /></button>
         </div>
         {result && <div className={`text-sm rounded-xl px-4 py-3 mb-4 ${result.startsWith("Erreur") ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"}`}>{result}</div>}
-        <div className="space-y-3">
-          <div><label className="text-xs font-medium text-gray-700 mb-1 block">Nom du magasin *</label>
-            <input value={form.name} onChange={(e) => set("name", e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none" /></div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className="text-xs font-medium text-gray-700 mb-1 block">Ville</label>
-              <input value={form.city ?? ""} onChange={(e) => set("city", e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none" /></div>
-            <div><label className="text-xs font-medium text-gray-700 mb-1 block">Code</label>
-              <input value={form.code ?? ""} onChange={(e) => set("code", e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none font-mono" /></div>
+        <StoreFormFields form={form} set={set} />
+        <div className="flex items-center justify-between mt-5 pt-4 border-t border-gray-100">
+          {!confirmDelete ? (
+            <button onClick={() => setConfirmDelete(true)}
+              className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-600 hover:bg-red-50 px-3 py-2 rounded-lg transition-colors">
+              <Trash2 size={13} /> Supprimer
+            </button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-red-600 font-medium">Confirmer la suppression ?</span>
+              <button onClick={handleDelete} disabled={deleting}
+                className="px-3 py-1.5 text-xs bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50 flex items-center gap-1">
+                {deleting && <Loader2 size={11} className="animate-spin" />}
+                Oui, supprimer
+              </button>
+              <button onClick={() => setConfirmDelete(false)} className="text-xs text-gray-500 hover:underline">Annuler</button>
+            </div>
+          )}
+          <div className="flex gap-2">
+            <button onClick={onClose} className="px-4 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">Annuler</button>
+            <button onClick={handleSave} disabled={loading || !form.name.trim()}
+              className="px-4 py-2 text-sm text-white rounded-lg font-medium disabled:opacity-50 flex items-center gap-2"
+              style={{ background: "#E40E20" }}>
+              {loading && <Loader2 size={13} className="animate-spin" />}
+              {loading ? "Sauvegarde…" : "Sauvegarder"}
+            </button>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className="text-xs font-medium text-gray-700 mb-1 block">Statut</label>
-              <select value={form.status} onChange={(e) => set("status", e.target.value as StoreStatus)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none cursor-pointer">
-                {(["✅ Ouvert","🚧 En cours","🔍 En recherche cellule","⏸️ Suspendu","❌ Fermé","FERMETURE A VENIR"] as StoreStatus[]).map((s) => <option key={s} value={s}>{s}</option>)}
-              </select></div>
-            <div><label className="text-xs font-medium text-gray-700 mb-1 block">Partenariat</label>
-              <select value={form.partnership ?? ""} onChange={(e) => set("partnership", e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none cursor-pointer">
-                <option value="">—</option>
-                {["FRANCHISE","MASTER FRANCHISE","DISTRI LIGHT","COMMISSION AFFILIATION"].map((p) => <option key={p} value={p}>{p}</option>)}
-              </select></div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className="text-xs font-medium text-gray-700 mb-1 block">Surface (m²)</label>
-              <input value={form.surface ?? ""} onChange={(e) => set("surface", e.target.value)} type="number" placeholder="ex: 450" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none" /></div>
-            <div><label className="text-xs font-medium text-gray-700 mb-1 block">Produit</label>
-              <input value={form.product ?? ""} onChange={(e) => set("product", e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none" /></div>
-          </div>
-          <div><label className="text-xs font-medium text-gray-700 mb-1 block">Représentant légal</label>
-            <input value={form.rep ?? ""} onChange={(e) => set("rep", e.target.value)} placeholder="Nom du représentant" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none" /></div>
-          <div><label className="text-xs font-medium text-gray-700 mb-1 block">Dénomination sociale</label>
-            <input value={form.denom ?? ""} onChange={(e) => set("denom", e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none" /></div>
-          <div><label className="text-xs font-medium text-gray-700 mb-1 block">Adresse</label>
-            <input value={form.address ?? ""} onChange={(e) => set("address", e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none" /></div>
-          <div><label className="text-xs font-medium text-gray-700 mb-1 block">Notes</label>
-            <textarea value={form.notes ?? ""} onChange={(e) => set("notes", e.target.value)} rows={2} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none resize-none" /></div>
-        </div>
-        <div className="flex justify-end gap-3 mt-5">
-          <button onClick={onClose} className="px-4 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">Annuler</button>
-          <button onClick={handleSave} disabled={loading || !form.name.trim()}
-            className="px-4 py-2 text-sm text-white rounded-lg font-medium disabled:opacity-50 flex items-center gap-2"
-            style={{ background: "#E40E20" }}>
-            {loading && <Loader2 size={13} className="animate-spin" />}
-            {loading ? "Sauvegarde…" : "Sauvegarder dans Coda"}
-          </button>
         </div>
       </div>
     </div>
@@ -105,16 +142,26 @@ function EditStoreModal({ store, onClose, onSave }: { store: Store; onClose: () 
 }
 
 function StoreCard({ s, onEdit }: { s: Store; onEdit: () => void }) {
+  const mapsQuery = [s.name, s.city, s.address].filter(Boolean).join(", ");
+  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapsQuery)}`;
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-sm transition-all group">
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-gray-800 text-sm">{s.name}</h3>
-          {s.city && <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1"><MapPin size={10} />{s.city}</p>}
+          {s.city && (
+            <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="text-xs text-blue-500 hover:text-blue-700 mt-0.5 flex items-center gap-1 w-fit">
+              <MapPin size={10} />{s.city}
+              <ExternalLink size={9} className="opacity-60" />
+            </a>
+          )}
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[s.status]}`}>{s.status}</span>
-          <button onClick={onEdit} className="text-gray-300 hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-all p-1 rounded hover:bg-blue-50">
+          <button onClick={onEdit}
+            className="text-gray-300 hover:text-blue-500 opacity-0 group-hover:opacity-100 transition-all p-1 rounded hover:bg-blue-50">
             <Edit size={13} />
           </button>
         </div>
@@ -227,10 +274,7 @@ function generatePDF(countryName: string, flag: string, stores: Store[]) {
 }
 
 // ── Add Store Modal ────────────────────────────────────────────────────────────
-function AddStoreModal({ countryKey, onClose, onAdd }: {
-  countryKey: string; onClose: () => void;
-  onAdd: (store: Store) => void;
-}) {
+function AddStoreModal({ countryKey, onClose }: { countryKey: string; onClose: () => void }) {
   const { addStoreToCoda } = useCodaSyncStore();
   const [form, setForm] = useState<Partial<Store>>({
     name: "", city: "", code: "", status: "🚧 En cours", partnership: "FRANCHISE",
@@ -258,11 +302,11 @@ function AddStoreModal({ countryKey, onClose, onAdd }: {
       notes: form.notes ?? "",
       country: countryKey,
     };
+    // addStoreToCoda updates Zustand store automatically
     const res = await addStoreToCoda(newStore);
     if (!res.ok) { setResult(`Erreur Coda: ${res.error}`); setLoading(false); return; }
-    onAdd(newStore);
-    setResult("Magasin ajouté !");
-    setTimeout(onClose, 800);
+    setResult("✅ Magasin ajouté dans Coda !");
+    setTimeout(onClose, 900);
     setLoading(false);
   };
 
@@ -274,36 +318,7 @@ function AddStoreModal({ countryKey, onClose, onAdd }: {
           <button onClick={onClose}><X size={20} className="text-gray-400" /></button>
         </div>
         {result && <div className={`text-sm rounded-xl px-4 py-3 mb-4 ${result.startsWith("Erreur") ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"}`}>{result}</div>}
-        <div className="space-y-3">
-          <div><label className="text-xs font-medium text-gray-700 mb-1 block">Nom du magasin *</label>
-            <input value={form.name ?? ""} onChange={(e) => set("name", e.target.value)} autoFocus className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none" /></div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className="text-xs font-medium text-gray-700 mb-1 block">Ville</label>
-              <input value={form.city ?? ""} onChange={(e) => set("city", e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none" /></div>
-            <div><label className="text-xs font-medium text-gray-700 mb-1 block">Code</label>
-              <input value={form.code ?? ""} onChange={(e) => set("code", e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none font-mono" /></div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className="text-xs font-medium text-gray-700 mb-1 block">Statut</label>
-              <select value={form.status ?? ""} onChange={(e) => set("status", e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none cursor-pointer">
-                {(["✅ Ouvert","🚧 En cours","🔍 En recherche cellule","⏸️ Suspendu","❌ Fermé","FERMETURE A VENIR"] as StoreStatus[]).map((s) => <option key={s} value={s}>{s}</option>)}
-              </select></div>
-            <div><label className="text-xs font-medium text-gray-700 mb-1 block">Partenariat</label>
-              <select value={form.partnership ?? ""} onChange={(e) => set("partnership", e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none cursor-pointer">
-                {["FRANCHISE","MASTER FRANCHISE","DISTRI LIGHT","COMMISSION AFFILIATION"].map((p) => <option key={p} value={p}>{p}</option>)}
-              </select></div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className="text-xs font-medium text-gray-700 mb-1 block">Surface (m²)</label>
-              <input value={form.surface ?? ""} onChange={(e) => set("surface", e.target.value)} type="number" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none" /></div>
-            <div><label className="text-xs font-medium text-gray-700 mb-1 block">Produit</label>
-              <input value={form.product ?? ""} onChange={(e) => set("product", e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none" /></div>
-          </div>
-          <div><label className="text-xs font-medium text-gray-700 mb-1 block">Représentant légal</label>
-            <input value={form.rep ?? ""} onChange={(e) => set("rep", e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none" /></div>
-          <div><label className="text-xs font-medium text-gray-700 mb-1 block">Notes</label>
-            <textarea value={form.notes ?? ""} onChange={(e) => set("notes", e.target.value)} rows={2} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none resize-none" /></div>
-        </div>
+        <StoreFormFields form={form} set={set} />
         <div className="flex justify-end gap-3 mt-5">
           <button onClick={onClose} className="px-4 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">Annuler</button>
           <button onClick={handleAdd} disabled={loading || !form.name?.trim()}
@@ -322,13 +337,14 @@ export default function CountryDetailPage({ params }: { params: Promise<{ id: st
   const { id } = use(params);
   const router = useRouter();
   const country = getCountryById(id);
-  const storesInitial = country ? getStoresForCountry(country.codaKey) : [];
+  // Use Zustand synced stores if available, fallback to static STORES
+  const { stores: allStores } = useCodaSyncStore();
+  const storeSource = allStores ?? STORES;
   const { todos } = useTodoStore();
   const countryTodos = todos.filter((t) => t.countryId === id);
   const [activeTab, setActiveTab] = useState<"stores" | "actions" | "notes">("stores");
   const [editingStore, setEditingStore] = useState<Store | null>(null);
   const [showAddStore, setShowAddStore] = useState(false);
-  const [localStores, setLocalStores] = useState<Store[]>(storesInitial);
 
   if (!country) {
     return (
@@ -341,7 +357,7 @@ export default function CountryDetailPage({ params }: { params: Promise<{ id: st
     );
   }
 
-  const stores = localStores;
+  const stores = country ? storeSource.filter((s) => s.country === country.codaKey) : [];
   const openStores = stores.filter((s) => s.status === "✅ Ouvert").length;
   const statusGroups = stores.reduce<Record<string, Store[]>>((acc, s) => {
     acc[s.status] = [...(acc[s.status] ?? []), s];
@@ -501,10 +517,8 @@ export default function CountryDetailPage({ params }: { params: Promise<{ id: st
         <EditStoreModal
           store={editingStore}
           onClose={() => setEditingStore(null)}
-          onSave={(updated) => {
-            setLocalStores((prev) => prev.map((s) => s.id === updated.id ? updated : s));
-            setEditingStore(null);
-          }}
+          onSave={() => setEditingStore(null)}
+          onDelete={() => setEditingStore(null)}
         />
       )}
 
@@ -513,10 +527,6 @@ export default function CountryDetailPage({ params }: { params: Promise<{ id: st
         <AddStoreModal
           countryKey={country.codaKey}
           onClose={() => setShowAddStore(false)}
-          onAdd={(newStore) => {
-            setLocalStores((prev) => [...prev, newStore]);
-            setShowAddStore(false);
-          }}
         />
       )}
     </div>

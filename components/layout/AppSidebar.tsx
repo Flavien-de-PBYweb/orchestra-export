@@ -3,8 +3,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  LayoutDashboard, Globe, CheckSquare, Ticket, BarChart3,
-  Video, StickyNote, ShoppingCart, Users, LogOut, ChevronRight,
+  LayoutDashboard, Globe, CheckSquare, BarChart3,
+  Video, StickyNote, Users, LogOut, ChevronRight,
   Bell, Settings, AlertCircle, Calendar, X,
 } from "lucide-react";
 import { useAuthStore, useTodoStore } from "@/lib/store";
@@ -16,9 +16,7 @@ const NAV = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Tableau de bord" },
   { href: "/countries", icon: Globe, label: "Pays & Marchés" },
   { href: "/todos", icon: CheckSquare, label: "Plan d'actions" },
-  { href: "/tickets", icon: Ticket, label: "Tickets JIRA", badge: "Bêta" },
   { href: "/stats", icon: BarChart3, label: "Statistiques" },
-  { href: "/reporting", icon: ShoppingCart, label: "Reporting E-com" },
   { href: "/meetings", icon: Video, label: "Réunions" },
   { href: "/notes", icon: StickyNote, label: "Notes" },
 ];

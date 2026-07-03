@@ -139,9 +139,16 @@ function UserModal({
 
           {/* Countries */}
           <div>
-            <label className="text-xs font-medium text-gray-700 mb-2 block">
-              Pays assignés <span className="text-gray-400">({form.countries.length} sélectionné{form.countries.length > 1 ? "s" : ""})</span>
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-medium text-gray-700">
+                Pays assignés <span className="text-gray-400">({form.countries.length} sélectionné{form.countries.length > 1 ? "s" : ""})</span>
+              </label>
+              <button type="button"
+                onClick={() => setForm((p) => ({ ...p, countries: form.countries.length === COUNTRIES.length ? [] : COUNTRIES.map((c) => c.id) }))}
+                className="text-xs text-blue-600 hover:underline">
+                {form.countries.length === COUNTRIES.length ? "Tout désélectionner" : "Tout sélectionner"}
+              </button>
+            </div>
             <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-xl p-2 grid grid-cols-2 gap-1">
               {COUNTRIES.map((c) => (
                 <button key={c.id} type="button"
