@@ -1,10 +1,9 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { DEMO_USERS } from "@/lib/auth";
-import { useAuthStore } from "@/lib/store";
+import { useAuthStore, useTeamStore } from "@/lib/store";
 import { OrchestraLogo, OrchestraLogoRed } from "@/components/shared/OrchestraLogo";
-import { X, Copy, CheckCircle, ArrowLeft } from "lucide-react";
+import { X, Copy, CheckCircle, ArrowLeft, Eye, EyeOff } from "lucide-react";
 
 // ── Forgot password modal ─────────────────────────────────────────────────────
 function ForgotPasswordModal({ onClose }: { onClose: () => void }) {
@@ -122,16 +121,19 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showForgot, setShowForgot] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
   const setUser = useAuthStore((s) => s.setUser);
+  const teamUsers = useTeamStore((s) => s.users);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
     await new Promise((r) => setTimeout(r, 600));
-    const found = DEMO_USERS.find(
-      (u) => u.email === email && u.password === password
+    // Check against persisted team users (covers all created accounts)
+    const found = teamUsers.find(
+      (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password && u.active
     );
     if (found) {
       setUser({ id: found.id, name: found.name, email: found.email, role: found.role });
@@ -213,14 +215,22 @@ export default function LoginPage() {
                     Mot de passe oublié ?
                   </button>
                 </div>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:border-transparent bg-gray-50"
-                  placeholder="••••••••••"
-                  required
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full px-4 py-3 pr-11 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:border-transparent bg-gray-50"
+                    placeholder="••••••••••"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                  </button>
+                </div>
               </div>
 
               {error && (

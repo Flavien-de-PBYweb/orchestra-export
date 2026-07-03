@@ -2,6 +2,45 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { INITIAL_TODOS, INITIAL_NOTES, INITIAL_TICKETS, type Todo, type Note } from "./data";
 
+// ── Team users (persisted — used by login) ────────────────────────────────────
+
+export interface TeamUser {
+  id: string;
+  name: string;
+  email: string;
+  role: "admin" | "manager" | "viewer";
+  countries: string[];
+  active: boolean;
+  lastActive?: string;
+  password?: string;
+}
+
+const INITIAL_TEAM_USERS: TeamUser[] = [
+  { id: "u1", name: "Laura Fernandez", email: "lfernandez@orchestra-premaman.com", role: "admin", active: true, countries: [], lastActive: "2026-06-26", password: "Orchestra2025!" },
+  { id: "u2", name: "PBYweb", email: "pbywebagency@gmail.com", role: "admin", active: true, countries: [], lastActive: "2026-06-26", password: "Orchestra2025!" },
+];
+
+interface TeamStore {
+  users: TeamUser[];
+  setUsers: (users: TeamUser[]) => void;
+  addUser: (user: TeamUser) => void;
+  updateUser: (user: TeamUser) => void;
+  deleteUser: (id: string) => void;
+}
+
+export const useTeamStore = create<TeamStore>()(
+  persist(
+    (set) => ({
+      users: INITIAL_TEAM_USERS,
+      setUsers: (users) => set({ users }),
+      addUser: (user) => set((s) => ({ users: [...s.users, user] })),
+      updateUser: (user) => set((s) => ({ users: s.users.map((u) => u.id === user.id ? user : u) })),
+      deleteUser: (id) => set((s) => ({ users: s.users.filter((u) => u.id !== id) })),
+    }),
+    { name: "orchestra-team" }
+  )
+);
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 interface AuthStore {

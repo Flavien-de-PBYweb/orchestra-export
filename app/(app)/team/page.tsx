@@ -1,19 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
 import { COUNTRIES } from "@/lib/data";
-import { useAuthStore } from "@/lib/store";
+import { useAuthStore, useTeamStore, type TeamUser } from "@/lib/store";
 import { User, Mail, Shield, CheckCircle, XCircle, Plus, Edit, X, Loader2, Eye, EyeOff, Trash2, Copy, Share2 } from "lucide-react";
-
-interface TeamUser {
-  id: string;
-  name: string;
-  email: string;
-  role: "admin" | "manager" | "viewer";
-  countries: string[];
-  active: boolean;
-  lastActive?: string;
-  password?: string;
-}
 
 const ROLE_LABELS = { admin: "Administrateur", manager: "Manager", viewer: "Lecteur" };
 const ROLE_COLORS = {
@@ -21,11 +10,6 @@ const ROLE_COLORS = {
   manager: "bg-blue-100 text-blue-700",
   viewer: "bg-gray-100 text-gray-600",
 };
-
-const INITIAL_USERS: TeamUser[] = [
-  { id: "u1", name: "Laura Fernandez", email: "lfernandez@orchestra-premaman.com", role: "admin", active: true, countries: [], lastActive: "2026-06-26" },
-  { id: "u2", name: "PBYweb", email: "pbywebagency@gmail.com", role: "admin", active: true, countries: [], lastActive: "2026-06-26" },
-];
 
 function generatePassword() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#";
@@ -269,7 +253,7 @@ Pense à changer ton mot de passe après ta première connexion.
 
 export default function TeamPage() {
   const { user: currentUser } = useAuthStore();
-  const [users, setUsers] = useState<TeamUser[]>(INITIAL_USERS);
+  const { users, addUser, updateUser, deleteUser } = useTeamStore();
   const [editingUser, setEditingUser] = useState<TeamUser | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [inviteCard, setInviteCard] = useState<{ name: string; email: string; password: string } | null>(null);
@@ -278,18 +262,17 @@ export default function TeamPage() {
 
   const handleSave = async (u: TeamUser, sendInvite: boolean) => {
     if (isNew) {
-      setUsers((prev) => [...prev, u]);
+      addUser(u);
     } else {
-      setUsers((prev) => prev.map((p) => (p.id === u.id ? u : p)));
+      updateUser(u);
     }
-
     if (sendInvite && isNew && u.password) {
       setInviteCard({ name: u.name, email: u.email, password: u.password });
     }
   };
 
   const handleDelete = (id: string) => {
-    setUsers((prev) => prev.filter((u) => u.id !== id));
+    deleteUser(id);
   };
 
   return (
