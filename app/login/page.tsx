@@ -4,12 +4,124 @@ import { useRouter } from "next/navigation";
 import { DEMO_USERS } from "@/lib/auth";
 import { useAuthStore } from "@/lib/store";
 import { OrchestraLogo, OrchestraLogoRed } from "@/components/shared/OrchestraLogo";
+import { X, Copy, CheckCircle, ArrowLeft } from "lucide-react";
 
+// ── Forgot password modal ─────────────────────────────────────────────────────
+function ForgotPasswordModal({ onClose }: { onClose: () => void }) {
+  const [step, setStep] = useState<"form" | "done">("form");
+  const [email, setEmail] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  const adminEmail = "lfernandez@orchestra-premaman.com";
+  const message = `Bonjour,
+
+J'ai oublié mon mot de passe pour accéder à l'outil Orchestra Export International.
+
+Mon adresse e-mail : ${email || "votre.email@example.com"}
+
+Merci de me renvoyer mes accès.
+
+Cordialement`;
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(message);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-gray-100">
+          <div className="flex items-center gap-3">
+            {step === "done" && (
+              <button onClick={() => setStep("form")} className="text-gray-400 hover:text-gray-600">
+                <ArrowLeft size={18} />
+              </button>
+            )}
+            <div>
+              <h2 className="text-base font-bold text-gray-900">Mot de passe oublié</h2>
+              <p className="text-xs text-gray-400">
+                {step === "form" ? "Entrez votre email pour continuer" : "Message prêt à envoyer"}
+              </p>
+            </div>
+          </div>
+          <button onClick={onClose}><X size={20} className="text-gray-400" /></button>
+        </div>
+
+        <div className="p-6">
+          {step === "form" ? (
+            <>
+              <p className="text-sm text-gray-600 mb-5 leading-relaxed">
+                La réinitialisation se fait via votre administrateur. Entrez votre email et nous préparerons un message à lui envoyer.
+              </p>
+              <div className="mb-5">
+                <label className="block text-xs font-medium text-gray-700 mb-1.5">Votre adresse e-mail</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="prenom.nom@example.com"
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-blue-400 bg-gray-50"
+                  autoFocus
+                />
+              </div>
+              <button
+                onClick={() => { if (email) setStep("done"); }}
+                disabled={!email}
+                className="w-full py-3 rounded-xl text-white font-semibold text-sm disabled:opacity-40 transition-all"
+                style={{ background: "#1B2E6B" }}>
+                Continuer
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-gray-600 mb-4">
+                Copiez ce message et envoyez-le à votre administrateur :
+                <a href={`mailto:${adminEmail}`} className="text-blue-600 hover:underline ml-1 font-medium">{adminEmail}</a>
+              </p>
+
+              {/* Message preview */}
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4">
+                <pre className="text-xs text-gray-700 whitespace-pre-wrap font-sans leading-relaxed">{message}</pre>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3">
+                <button
+                  onClick={handleCopy}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold text-white transition-all"
+                  style={{ background: copied ? "#16a34a" : "#1B2E6B" }}>
+                  {copied ? <CheckCircle size={15} /> : <Copy size={15} />}
+                  {copied ? "Copié !" : "Copier le message"}
+                </button>
+                <a
+                  href={`mailto:${adminEmail}?subject=Réinitialisation%20mot%20de%20passe%20Orchestra%20Export&body=${encodeURIComponent(message)}`}
+                  className="px-4 py-3 rounded-xl text-sm font-semibold border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all flex items-center gap-1.5">
+                  ✉️ Email
+                </a>
+              </div>
+
+              <p className="text-center text-xs text-gray-400 mt-4">
+                L'administrateur vous renverra vos accès via le même canal.
+              </p>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Login page ────────────────────────────────────────────────────────────────
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
   const router = useRouter();
   const setUser = useAuthStore((s) => s.setUser);
 
@@ -91,7 +203,16 @@ export default function LoginPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Mot de passe</label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-sm font-medium text-gray-700">Mot de passe</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowForgot(true)}
+                    className="text-xs font-medium hover:underline"
+                    style={{ color: "#1B2E6B" }}>
+                    Mot de passe oublié ?
+                  </button>
+                </div>
                 <input
                   type="password"
                   value={password}
@@ -127,10 +248,13 @@ export default function LoginPage() {
 
           <p className="text-center text-gray-400 text-xs mt-6">
             Problème de connexion ? Contactez{" "}
-            <a href="mailto:it@orchestra.fr" className="underline">it@orchestra.fr</a>
+            <a href="mailto:lfernandez@orchestra-premaman.com" className="underline">votre administrateur</a>
           </p>
         </div>
       </div>
+
+      {/* Forgot password modal */}
+      {showForgot && <ForgotPasswordModal onClose={() => setShowForgot(false)} />}
     </div>
   );
 }

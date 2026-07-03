@@ -363,6 +363,14 @@ export default function TeamPage() {
                         className="text-gray-400 hover:text-blue-500 transition-colors p-1 rounded hover:bg-blue-50">
                         <Edit size={13} />
                       </button>
+                      {u.password && (
+                        <button
+                          title="Repartager les accès"
+                          onClick={() => setInviteCard({ name: u.name, email: u.email, password: u.password! })}
+                          className="text-gray-400 hover:text-green-500 transition-colors p-1 rounded hover:bg-green-50">
+                          <Share2 size={13} />
+                        </button>
+                      )}
                       {!isCurrent && (
                         <button onClick={() => handleDelete(u.id)}
                           className="text-gray-400 hover:text-red-400 transition-colors p-1 rounded hover:bg-red-50">
