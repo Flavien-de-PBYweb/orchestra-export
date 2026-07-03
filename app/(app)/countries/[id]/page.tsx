@@ -2,8 +2,8 @@
 import { use, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getCountryById, getStoresForCountry, INITIAL_TODOS, type Store, type StoreStatus } from "@/lib/data";
-import { useTodoStore } from "@/lib/store";
-import { ArrowLeft, Download, Store as StoreIcon, MapPin, User, Package, Edit, X, Loader2, Flag, Calendar } from "lucide-react";
+import { useTodoStore, useCodaSyncStore } from "@/lib/store";
+import { ArrowLeft, Download, Store as StoreIcon, MapPin, User, Package, Edit, X, Loader2, Flag, Calendar, Plus } from "lucide-react";
 import jsPDF from "jspdf";
 
 const STATUS_COLORS: Record<StoreStatus, string> = {
@@ -226,16 +226,109 @@ function generatePDF(countryName: string, flag: string, stores: Store[]) {
   doc.save(`Orchestra_${countryName.replace(/\s/g, "_")}_rapport.pdf`);
 }
 
+// ── Add Store Modal ────────────────────────────────────────────────────────────
+function AddStoreModal({ countryKey, onClose, onAdd }: {
+  countryKey: string; onClose: () => void;
+  onAdd: (store: Store) => void;
+}) {
+  const { addStoreToCoda } = useCodaSyncStore();
+  const [form, setForm] = useState<Partial<Store>>({
+    name: "", city: "", code: "", status: "🚧 En cours", partnership: "FRANCHISE",
+    surface: "", product: "", rep: "", denom: "", address: "", notes: "", country: countryKey,
+  });
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+  const set = (f: keyof Store, v: string) => setForm((p) => ({ ...p, [f]: v }));
+
+  const handleAdd = async () => {
+    if (!form.name?.trim()) return;
+    setLoading(true);
+    const newStore: Store = {
+      id: `s${Date.now()}`,
+      name: form.name ?? "",
+      city: form.city ?? "",
+      code: form.code ?? "",
+      status: (form.status ?? "🚧 En cours") as StoreStatus,
+      partnership: (form.partnership ?? "FRANCHISE") as import("@/lib/data").PartnershipType,
+      surface: form.surface ?? "",
+      product: form.product ?? "",
+      rep: form.rep ?? "",
+      denom: form.denom ?? "",
+      address: form.address ?? "",
+      notes: form.notes ?? "",
+      country: countryKey,
+    };
+    const res = await addStoreToCoda(newStore);
+    if (!res.ok) { setResult(`Erreur Coda: ${res.error}`); setLoading(false); return; }
+    onAdd(newStore);
+    setResult("Magasin ajouté !");
+    setTimeout(onClose, 800);
+    setLoading(false);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-lg font-bold text-gray-900">Ajouter un magasin</h2>
+          <button onClick={onClose}><X size={20} className="text-gray-400" /></button>
+        </div>
+        {result && <div className={`text-sm rounded-xl px-4 py-3 mb-4 ${result.startsWith("Erreur") ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"}`}>{result}</div>}
+        <div className="space-y-3">
+          <div><label className="text-xs font-medium text-gray-700 mb-1 block">Nom du magasin *</label>
+            <input value={form.name ?? ""} onChange={(e) => set("name", e.target.value)} autoFocus className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none" /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="text-xs font-medium text-gray-700 mb-1 block">Ville</label>
+              <input value={form.city ?? ""} onChange={(e) => set("city", e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none" /></div>
+            <div><label className="text-xs font-medium text-gray-700 mb-1 block">Code</label>
+              <input value={form.code ?? ""} onChange={(e) => set("code", e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none font-mono" /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="text-xs font-medium text-gray-700 mb-1 block">Statut</label>
+              <select value={form.status ?? ""} onChange={(e) => set("status", e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none cursor-pointer">
+                {(["✅ Ouvert","🚧 En cours","🔍 En recherche cellule","⏸️ Suspendu","❌ Fermé","FERMETURE A VENIR"] as StoreStatus[]).map((s) => <option key={s} value={s}>{s}</option>)}
+              </select></div>
+            <div><label className="text-xs font-medium text-gray-700 mb-1 block">Partenariat</label>
+              <select value={form.partnership ?? ""} onChange={(e) => set("partnership", e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none cursor-pointer">
+                {["FRANCHISE","MASTER FRANCHISE","DISTRI LIGHT","COMMISSION AFFILIATION"].map((p) => <option key={p} value={p}>{p}</option>)}
+              </select></div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="text-xs font-medium text-gray-700 mb-1 block">Surface (m²)</label>
+              <input value={form.surface ?? ""} onChange={(e) => set("surface", e.target.value)} type="number" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none" /></div>
+            <div><label className="text-xs font-medium text-gray-700 mb-1 block">Produit</label>
+              <input value={form.product ?? ""} onChange={(e) => set("product", e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none" /></div>
+          </div>
+          <div><label className="text-xs font-medium text-gray-700 mb-1 block">Représentant légal</label>
+            <input value={form.rep ?? ""} onChange={(e) => set("rep", e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none" /></div>
+          <div><label className="text-xs font-medium text-gray-700 mb-1 block">Notes</label>
+            <textarea value={form.notes ?? ""} onChange={(e) => set("notes", e.target.value)} rows={2} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none resize-none" /></div>
+        </div>
+        <div className="flex justify-end gap-3 mt-5">
+          <button onClick={onClose} className="px-4 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">Annuler</button>
+          <button onClick={handleAdd} disabled={loading || !form.name?.trim()}
+            className="px-4 py-2 text-sm text-white rounded-lg font-medium disabled:opacity-50 flex items-center gap-2"
+            style={{ background: "#E40E20" }}>
+            {loading && <Loader2 size={13} className="animate-spin" />}
+            {loading ? "Ajout…" : "Ajouter dans Coda"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function CountryDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
   const country = getCountryById(id);
-  const stores = country ? getStoresForCountry(country.codaKey) : [];
+  const storesInitial = country ? getStoresForCountry(country.codaKey) : [];
   const { todos } = useTodoStore();
   const countryTodos = todos.filter((t) => t.countryId === id);
   const [activeTab, setActiveTab] = useState<"stores" | "actions" | "notes">("stores");
   const [editingStore, setEditingStore] = useState<Store | null>(null);
-  const [localStores, setLocalStores] = useState<Store[]>(stores);
+  const [showAddStore, setShowAddStore] = useState(false);
+  const [localStores, setLocalStores] = useState<Store[]>(storesInitial);
 
   if (!country) {
     return (
@@ -248,6 +341,7 @@ export default function CountryDetailPage({ params }: { params: Promise<{ id: st
     );
   }
 
+  const stores = localStores;
   const openStores = stores.filter((s) => s.status === "✅ Ouvert").length;
   const statusGroups = stores.reduce<Record<string, Store[]>>((acc, s) => {
     acc[s.status] = [...(acc[s.status] ?? []), s];
@@ -271,13 +365,22 @@ export default function CountryDetailPage({ params }: { params: Promise<{ id: st
             </div>
           </div>
         </div>
-        <button
-          onClick={() => generatePDF(country.name, country.flag, stores)}
-          className="flex items-center gap-2 px-4 py-2 text-sm text-white rounded-xl font-medium shadow-sm hover:shadow-md transition-all"
-          style={{ background: "#1B2E6B" }}>
-          <Download size={15} />
-          Télécharger PDF
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowAddStore(true)}
+            className="flex items-center gap-2 px-4 py-2 text-sm text-white rounded-xl font-medium shadow-sm hover:shadow-md transition-all"
+            style={{ background: "#E40E20" }}>
+            <Plus size={15} />
+            Ajouter un magasin
+          </button>
+          <button
+            onClick={() => generatePDF(country.name, country.flag, stores)}
+            className="flex items-center gap-2 px-4 py-2 text-sm text-white rounded-xl font-medium shadow-sm hover:shadow-md transition-all"
+            style={{ background: "#1B2E6B" }}>
+            <Download size={15} />
+            Télécharger PDF
+          </button>
+        </div>
       </div>
 
       {/* KPIs */}
@@ -393,6 +496,18 @@ export default function CountryDetailPage({ params }: { params: Promise<{ id: st
           onSave={(updated) => {
             setLocalStores((prev) => prev.map((s) => s.id === updated.id ? updated : s));
             setEditingStore(null);
+          }}
+        />
+      )}
+
+      {/* Add store modal */}
+      {showAddStore && (
+        <AddStoreModal
+          countryKey={country.codaKey}
+          onClose={() => setShowAddStore(false)}
+          onAdd={(newStore) => {
+            setLocalStores((prev) => [...prev, newStore]);
+            setShowAddStore(false);
           }}
         />
       )}

@@ -3,10 +3,10 @@ import { useState } from "react";
 import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from "react-simple-maps";
 import { COUNTRIES, STORES } from "@/lib/data";
 import { useCodaSyncStore } from "@/lib/store";
+import { Plus, Minus, RotateCcw } from "lucide-react";
 
 const GEO_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 
-// Coordinates for each country codaKey
 const COUNTRY_COORDS: Record<string, [number, number]> = {
   ALBANIE: [20.2, 41.2],
   ALGERIE: [2.6, 28.0],
@@ -22,7 +22,7 @@ const COUNTRY_COORDS: Record<string, [number, number]> = {
   ISRAEL: [34.9, 31.5],
   JORDANIE: [36.2, 31.2],
   KAZAKHSTAN: [67.0, 48.0],
-  KOWEÏT: [47.5, 29.3],
+  "KOWEÏT": [47.5, 29.3],
   LIBAN: [35.5, 33.9],
   LIBYE: [17.2, 26.3],
   MAROC: [-7.1, 31.8],
@@ -42,14 +42,23 @@ const COUNTRY_COORDS: Record<string, [number, number]> = {
   TUNISIE: [9.5, 33.9],
   TURQUIE: [35.2, 38.9],
   OUZBEKISTAN: [64.6, 41.4],
+  GHANA: [-1.0, 7.9],
+  MADAGASCAR: [46.9, -18.9],
+  MONGOLIE: [103.8, 46.8],
+  MAURICE: [57.6, -20.3],
+  PARAGUAY: [-58.4, -23.4],
+  KOSOVO: [20.9, 42.6],
+  "ST MARTIN": [-63.1, 18.1],
+  "ST PIERRE MIQUELON": [-56.3, 46.8],
 };
 
 export function WorldMap() {
   const { stores: syncedStores } = useCodaSyncStore();
   const stores = syncedStores ?? STORES;
   const [tooltip, setTooltip] = useState<{ country: string; count: number; x: number; y: number } | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const [center, setCenter] = useState<[number, number]>([20, 20]);
 
-  // Group stores by country
   const storesByCountry = COUNTRIES.reduce<Record<string, number>>((acc, c) => {
     const count = stores.filter((s) => s.country === c.codaKey).length;
     if (count > 0) acc[c.codaKey] = count;
@@ -59,12 +68,20 @@ export function WorldMap() {
   const maxStores = Math.max(...Object.values(storesByCountry), 1);
 
   return (
-    <div className="relative w-full h-[340px] bg-gradient-to-b from-blue-50 to-white rounded-2xl border border-gray-100 overflow-hidden">
+    <div className="relative w-full h-[360px] bg-gradient-to-b from-blue-50 to-white rounded-2xl border border-gray-100 overflow-hidden">
       <ComposableMap
-        projectionConfig={{ scale: 140, center: [20, 20] }}
+        projectionConfig={{ scale: 140 }}
         style={{ width: "100%", height: "100%" }}
       >
-        <ZoomableGroup>
+        <ZoomableGroup
+          zoom={zoom}
+          center={center}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          onMoveEnd={({ zoom: z, coordinates }: any) => {
+            setZoom(z);
+            setCenter(coordinates);
+          }}
+        >
           <Geographies geography={GEO_URL}>
             {({ geographies }: { geographies: unknown[] }) =>
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -113,7 +130,7 @@ export function WorldMap() {
                   strokeWidth={1.5}
                   style={{ cursor: "pointer" }}
                 />
-                {count >= 5 && (
+                {count >= 3 && (
                   <text
                     textAnchor="middle"
                     dominantBaseline="central"
@@ -131,16 +148,44 @@ export function WorldMap() {
         </ZoomableGroup>
       </ComposableMap>
 
+      {/* Tooltip */}
       {tooltip && (
-        <div className="fixed z-50 bg-gray-900 text-white text-xs px-3 py-2 rounded-lg shadow-xl pointer-events-none transform -translate-x-1/2 -translate-y-full"
-          style={{ left: tooltip.x, top: tooltip.y - 8 }}>
+        <div
+          className="fixed z-50 bg-gray-900 text-white text-xs px-3 py-2 rounded-lg shadow-xl pointer-events-none transform -translate-x-1/2 -translate-y-full"
+          style={{ left: tooltip.x, top: tooltip.y - 8 }}
+        >
           <p className="font-semibold">{tooltip.country}</p>
           <p className="text-gray-300">{tooltip.count} magasin{tooltip.count > 1 ? "s" : ""}</p>
         </div>
       )}
 
-      <div className="absolute bottom-3 left-4 text-[10px] text-gray-400">
-        Hover pour le détail · Scroll pour zoomer
+      {/* Zoom controls */}
+      <div className="absolute top-3 left-3 flex flex-col gap-1">
+        <button
+          onClick={() => setZoom((z) => Math.min(z * 1.5, 12))}
+          className="w-7 h-7 bg-white border border-gray-200 rounded-lg flex items-center justify-center shadow-sm hover:bg-gray-50 transition-colors"
+          title="Zoomer"
+        >
+          <Plus size={14} className="text-gray-600" />
+        </button>
+        <button
+          onClick={() => setZoom((z) => Math.max(z / 1.5, 0.5))}
+          className="w-7 h-7 bg-white border border-gray-200 rounded-lg flex items-center justify-center shadow-sm hover:bg-gray-50 transition-colors"
+          title="Dézoomer"
+        >
+          <Minus size={14} className="text-gray-600" />
+        </button>
+        <button
+          onClick={() => { setZoom(1); setCenter([20, 20]); }}
+          className="w-7 h-7 bg-white border border-gray-200 rounded-lg flex items-center justify-center shadow-sm hover:bg-gray-50 transition-colors"
+          title="Réinitialiser"
+        >
+          <RotateCcw size={12} className="text-gray-600" />
+        </button>
+      </div>
+
+      <div className="absolute bottom-3 left-14 text-[10px] text-gray-400">
+        Scroll pour zoomer · Clic-glisser pour naviguer
       </div>
       <div className="absolute top-3 right-4 flex items-center gap-1.5">
         <div className="w-2.5 h-2.5 rounded-full bg-red-500 opacity-75" />
