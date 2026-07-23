@@ -1,6 +1,6 @@
 // ── Types ────────────────────────────────────────────────────────────────────
 
-export type StoreStatus = "✅ Ouvert" | "🔍 En recherche cellule" | "⏸️ Suspendu" | "🚧 En cours" | "❌ Fermé" | "FERMETURE A VENIR";
+export type StoreStatus = "✅ Ouvert" | "🔍 En recherche cellule" | "⏸️ Suspendu" | "🚧 En cours" | "❌ Fermé" | "FERMETURE A VENIR" | "🎯 Prospects";
 export type PartnershipType = "FRANCHISE" | "MASTER FRANCHISE" | "DISTRI LIGHT" | "COMMISSION AFFILIATION";
 export type ProductType = "TEXTILE" | "MIXTE" | "";
 export type TodoStatus = "à_faire" | "en_cours" | "terminé" | "bloqué";

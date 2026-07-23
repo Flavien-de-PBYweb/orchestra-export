@@ -10,6 +10,7 @@ const STATUS_COLORS: Record<StoreStatus, string> = {
   "✅ Ouvert": "bg-green-100 text-green-700",
   "🚧 En cours": "bg-blue-100 text-blue-700",
   "🔍 En recherche cellule": "bg-yellow-100 text-yellow-700",
+  "🎯 Prospects": "bg-violet-100 text-violet-700",
   "⏸️ Suspendu": "bg-orange-100 text-orange-700",
   "❌ Fermé": "bg-red-100 text-red-600",
   "FERMETURE A VENIR": "bg-red-50 text-red-500",
@@ -22,10 +23,6 @@ const PARTNERSHIP_COLORS: Record<string, string> = {
   "COMMISSION AFFILIATION": "bg-sky-100 text-sky-700",
 };
 
-const STORE_FORMATS = [
-  "Stand alone", "Centre commercial", "Galerie marchande",
-  "Corner", "Shop-in-shop", "Outlet", "Pop-up", "Flagship",
-];
 
 function StoreFormFields({ form, set }: { form: Partial<Store>; set: (f: keyof Store, v: string) => void }) {
   return (
@@ -41,7 +38,7 @@ function StoreFormFields({ form, set }: { form: Partial<Store>; set: (f: keyof S
       <div className="grid grid-cols-2 gap-3">
         <div><label className="text-xs font-medium text-gray-700 mb-1 block">Statut</label>
           <select value={form.status ?? ""} onChange={(e) => set("status", e.target.value as StoreStatus)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none cursor-pointer">
-            {(["✅ Ouvert","🚧 En cours","🔍 En recherche cellule","⏸️ Suspendu","❌ Fermé","FERMETURE A VENIR"] as StoreStatus[]).map((s) => <option key={s} value={s}>{s}</option>)}
+            {(["✅ Ouvert","🚧 En cours","🔍 En recherche cellule","🎯 Prospects","⏸️ Suspendu","❌ Fermé","FERMETURE A VENIR"] as StoreStatus[]).map((s) => <option key={s} value={s}>{s}</option>)}
           </select></div>
         <div><label className="text-xs font-medium text-gray-700 mb-1 block">Partenariat</label>
           <select value={form.partnership ?? ""} onChange={(e) => set("partnership", e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none cursor-pointer">
@@ -50,10 +47,11 @@ function StoreFormFields({ form, set }: { form: Partial<Store>; set: (f: keyof S
           </select></div>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <div><label className="text-xs font-medium text-gray-700 mb-1 block">Format magasin</label>
+        <div><label className="text-xs font-medium text-gray-700 mb-1 block">Type (Mixte / Textile)</label>
           <select value={form.product ?? ""} onChange={(e) => set("product", e.target.value)} className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none cursor-pointer">
             <option value="">—</option>
-            {STORE_FORMATS.map((f) => <option key={f} value={f}>{f}</option>)}
+            <option value="MIXTE">MIXTE</option>
+            <option value="TEXTILE">TEXTILE</option>
           </select></div>
         <div><label className="text-xs font-medium text-gray-700 mb-1 block">Surface (m²)</label>
           <input value={form.surface ?? ""} onChange={(e) => set("surface", e.target.value)} type="number" placeholder="ex: 450" className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none" /></div>
@@ -405,6 +403,7 @@ export default function CountryDetailPage({ params }: { params: Promise<{ id: st
           "✅ Ouvert":                { dot: "bg-green-500",  textColor: "text-green-600",  label: "Ouverts" },
           "🚧 En cours":              { dot: "bg-blue-500",   textColor: "text-blue-600",   label: "En cours" },
           "🔍 En recherche cellule":  { dot: "bg-yellow-500", textColor: "text-yellow-600", label: "En recherche" },
+          "🎯 Prospects":             { dot: "bg-violet-500", textColor: "text-violet-600", label: "Prospects" },
           "⏸️ Suspendu":              { dot: "bg-orange-400", textColor: "text-orange-500", label: "Stand by" },
           "FERMETURE A VENIR":        { dot: "bg-red-400",    textColor: "text-red-500",    label: "Fermeture prévue" },
           "❌ Fermé":                 { dot: "bg-gray-400",   textColor: "text-gray-600",   label: "Fermés" },

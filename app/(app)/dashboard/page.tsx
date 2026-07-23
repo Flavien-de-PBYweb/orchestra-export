@@ -30,10 +30,19 @@ function CustomPieLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent }:
 function SmallTooltip({ active, payload }: any) {
   if (!active || !payload?.length) return null;
   const d = payload[0];
+  const detail: string[] = d.payload?.detail ?? [];
   return (
-    <div className="bg-gray-900 text-white text-xs px-3 py-2 rounded-lg shadow-xl">
-      <p className="font-semibold">{d.name}</p>
-      <p className="text-gray-300">{d.value} · {((d.payload.percent ?? 0) * 100).toFixed(1)}%</p>
+    <div className="bg-gray-900 text-white text-xs px-3 py-2.5 rounded-lg shadow-xl max-w-[200px]">
+      <p className="font-semibold mb-0.5">{d.name}</p>
+      <p className="text-gray-300 mb-1">{d.value} · {((d.payload.percent ?? 0) * 100).toFixed(1)}%</p>
+      {detail.length > 0 && (
+        <ul className="border-t border-white/10 pt-1.5 space-y-0.5">
+          {detail.slice(0, 8).map((item, i) => (
+            <li key={i} className="text-gray-300 truncate">· {item}</li>
+          ))}
+          {detail.length > 8 && <li className="text-gray-500">+{detail.length - 8} autres</li>}
+        </ul>
+      )}
     </div>
   );
 }
@@ -47,40 +56,60 @@ export default function DashboardPage() {
   const recentMeeting = INITIAL_MEETINGS[0];
 
   // ── Store stats ──────────────────────────────────────────────────────────────
-  const storesOpen      = stores.filter((s) => s.status === "✅ Ouvert").length;
-  const storesEnCours   = stores.filter((s) => s.status === "🚧 En cours").length;
-  const storesFermeture = stores.filter((s) => s.status === "FERMETURE A VENIR" || s.status === "❌ Fermé").length;
-  const storesSuspendu  = stores.filter((s) => s.status === "⏸️ Suspendu").length;
-  const storesRecherche = stores.filter((s) => s.status === "🔍 En recherche cellule").length;
+  const activeStores    = stores.filter((s) => s.status !== "❌ Fermé" && s.status !== "FERMETURE A VENIR");
+  const storesOpen      = stores.filter((s) => s.status === "✅ Ouvert");
+  const storesEnCours   = stores.filter((s) => s.status === "🚧 En cours");
+  const storesFermeture = stores.filter((s) => s.status === "FERMETURE A VENIR" || s.status === "❌ Fermé");
+  const storesSuspendu  = stores.filter((s) => s.status === "⏸️ Suspendu");
+  const storesRecherche = stores.filter((s) => s.status === "🔍 En recherche cellule");
+  const storesProspects = stores.filter((s) => s.status === "🎯 Prospects");
   const totalCountries  = new Set(stores.map((s) => s.country)).size;
 
+  // Store status pie — ALL statuses, with store name list for tooltip
   const statusData = [
-    { name: "Ouverts",      value: storesOpen,      color: "#22C55E" },
-    { name: "En cours",     value: storesEnCours,   color: "#3B82F6" },
-    { name: "Stand by",     value: storesSuspendu,  color: "#F59E0B" },
-    { name: "Fermeture",    value: storesFermeture, color: "#EF4444" },
-    { name: "En recherche", value: storesRecherche, color: "#8B5CF6" },
+    { name: "Ouverts",      value: storesOpen.length,      color: "#22C55E", detail: storesOpen.map(s => s.name) },
+    { name: "En cours",     value: storesEnCours.length,   color: "#3B82F6", detail: storesEnCours.map(s => s.name) },
+    { name: "En recherche", value: storesRecherche.length, color: "#8B5CF6", detail: storesRecherche.map(s => s.name) },
+    { name: "Prospects",    value: storesProspects.length, color: "#7C3AED", detail: storesProspects.map(s => s.name) },
+    { name: "Stand by",     value: storesSuspendu.length,  color: "#F59E0B", detail: storesSuspendu.map(s => s.name) },
+    { name: "Fermeture",    value: storesFermeture.length, color: "#EF4444", detail: storesFermeture.map(s => s.name) },
   ].filter((s) => s.value > 0);
 
-  // ── Country status (based on stores) ────────────────────────────────────────
+  // MIXTE / TEXTILE pie
+  const storesMixte   = stores.filter((s) => s.product === "MIXTE");
+  const storesTextile = stores.filter((s) => s.product === "TEXTILE");
+  const mixteData = [
+    { name: "Mixte",   value: storesMixte.length,   color: "#1B2E6B", detail: storesMixte.map(s => s.name) },
+    { name: "Textile", value: storesTextile.length,  color: "#E40E20", detail: storesTextile.map(s => s.name) },
+  ].filter((s) => s.value > 0);
+
+  // ── Country status (priority-based, show ALL) ─────────────────────────────
+  // Priority: Ouvert > En cours > En recherche > Prospects > Suspendu > Fermeture > Fermé
+  const STATUS_PRIORITY = ["✅ Ouvert","🚧 En cours","🔍 En recherche cellule","🎯 Prospects","⏸️ Suspendu","FERMETURE A VENIR","❌ Fermé"] as const;
   const activeCountries = COUNTRIES.filter((c) => stores.some((s) => s.country === c.codaKey));
-  const countriesOpen     = activeCountries.filter((c) => stores.some((s) => s.country === c.codaKey && s.status === "✅ Ouvert")).length;
-  const countriesEnCours  = activeCountries.filter((c) =>
-    !stores.some((s) => s.country === c.codaKey && s.status === "✅ Ouvert") &&
-    stores.some((s) => s.country === c.codaKey && s.status === "🚧 En cours")
-  ).length;
-  const countriesStandBy  = activeCountries.filter((c) =>
-    !stores.some((s) => s.country === c.codaKey && (s.status === "✅ Ouvert" || s.status === "🚧 En cours")) &&
-    stores.some((s) => s.country === c.codaKey && s.status === "⏸️ Suspendu")
-  ).length;
-  const countriesAutres   = activeCountries.length - countriesOpen - countriesEnCours - countriesStandBy;
 
-  const countryStatusData = [
-    { name: "Ouverts",     value: countriesOpen,    color: "#22C55E" },
-    { name: "En ouverture", value: countriesEnCours, color: "#3B82F6" },
-    { name: "Stand by",    value: countriesStandBy, color: "#F59E0B" },
-    { name: "Autres",      value: countriesAutres,  color: "#9CA3AF" },
-  ].filter((s) => s.value > 0);
+  const getCountryStatus = (codaKey: string) => {
+    const cs = stores.filter((s) => s.country === codaKey);
+    for (const st of STATUS_PRIORITY) {
+      if (cs.some((s) => s.status === st)) return st;
+    }
+    return cs[0]?.status ?? "❌ Fermé";
+  };
+
+  const COUNTRY_STATUS_CFG = [
+    { key: "✅ Ouvert",               name: "Ouverts",      color: "#22C55E" },
+    { key: "🚧 En cours",             name: "En ouverture", color: "#3B82F6" },
+    { key: "🔍 En recherche cellule", name: "En recherche", color: "#8B5CF6" },
+    { key: "🎯 Prospects",            name: "Prospects",    color: "#7C3AED" },
+    { key: "⏸️ Suspendu",             name: "Stand by",     color: "#F59E0B" },
+    { key: "FERMETURE A VENIR",       name: "Fermeture",    color: "#F97316" },
+    { key: "❌ Fermé",                name: "Fermés",       color: "#9CA3AF" },
+  ] as const;
+
+  const countryStatusData = COUNTRY_STATUS_CFG.map(({ key, name, color }) => {
+    const matching = activeCountries.filter((c) => getCountryStatus(c.codaKey) === key);
+    return { name, value: matching.length, color, detail: matching.map((c) => `${c.flag} ${c.name}`) };
+  }).filter((s) => s.value > 0);
 
   // ── Partnership type per COUNTRY (not per store) ──────────────────────────
   const countryPartnershipMap: Record<string, string> = {};
@@ -134,11 +163,12 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* KPI Cards — 3 cards (sans Tickets) */}
-      <div className="grid grid-cols-3 gap-4">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-4 gap-4">
         {[
-          { label: "Pays / marchés actifs", value: totalCountries, icon: Globe, color: "#1B2E6B", sub: `${countriesOpen} pays ouverts` },
-          { label: "Magasins", value: stores.length, icon: Store, color: "#E40E20", sub: `${storesOpen} ouverts · ${storesEnCours} en cours` },
+          { label: "Pays / marchés actifs", value: totalCountries, icon: Globe, color: "#1B2E6B", sub: `${countryStatusData.find(d=>d.name==="Ouverts")?.value ?? 0} pays ouverts` },
+          { label: "Magasins actifs", value: activeStores.length, icon: Store, color: "#E40E20", sub: `${storesOpen.length} ouverts · ${storesEnCours.length} en cours` },
+          { label: "Prospects", value: storesProspects.length, icon: Store, color: "#7C3AED", sub: `${new Set(storesProspects.map(s=>s.country)).size} pays concernés` },
           { label: "Actions en cours", value: todos.filter((t) => t.status !== "terminé").length, icon: Clock, color: "#8B5CF6", sub: `${todos.filter(t => t.priority === "haute" && t.status !== "terminé").length} haute priorité` },
         ].map((kpi) => (
           <div key={kpi.label} className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
@@ -156,12 +186,12 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* Charts row — 3 cols */}
-      <div className="grid grid-cols-3 gap-4">
+      {/* Charts row — 4 cols */}
+      <div className="grid grid-cols-4 gap-4">
         {/* Statut des MAGASINS */}
         <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
           <h2 className="font-semibold text-gray-900 mb-0.5 text-sm">Statut des magasins</h2>
-          <p className="text-[10px] text-gray-400 mb-3">Par point de vente</p>
+          <p className="text-[10px] text-gray-400 mb-3">Hover pour le détail</p>
           <ResponsiveContainer width="100%" height={130}>
             <PieChart>
               <Pie data={withPercent(statusData)} dataKey="value" cx="50%" cy="50%"
@@ -187,7 +217,7 @@ export default function DashboardPage() {
         {/* Statut des PAYS */}
         <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
           <h2 className="font-semibold text-gray-900 mb-0.5 text-sm">Statut des pays</h2>
-          <p className="text-[10px] text-gray-400 mb-3">Par marché actif</p>
+          <p className="text-[10px] text-gray-400 mb-3">Hover pour la liste des pays</p>
           <ResponsiveContainer width="100%" height={130}>
             <PieChart>
               <Pie data={withPercent(countryStatusData)} dataKey="value" cx="50%" cy="50%"
@@ -208,6 +238,36 @@ export default function DashboardPage() {
               </div>
             ))}
           </div>
+        </div>
+
+        {/* MIXTE / TEXTILE */}
+        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+          <h2 className="font-semibold text-gray-900 mb-0.5 text-sm">Mixte / Textile</h2>
+          <p className="text-[10px] text-gray-400 mb-3">Répartition par type</p>
+          <ResponsiveContainer width="100%" height={130}>
+            <PieChart>
+              <Pie data={withPercent(mixteData)} dataKey="value" cx="50%" cy="50%"
+                outerRadius={58} innerRadius={28} labelLine={false} label={<CustomPieLabel />}>
+                {mixteData.map((s, i) => <Cell key={i} fill={s.color} />)}
+              </Pie>
+              <Tooltip content={<SmallTooltip />} />
+            </PieChart>
+          </ResponsiveContainer>
+          {mixteData.length === 0 ? (
+            <p className="text-xs text-gray-400 text-center py-2">Données non renseignées</p>
+          ) : (
+            <div className="space-y-1 mt-1">
+              {mixteData.map((s) => (
+                <div key={s.name} className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-sm" style={{ background: s.color }} />
+                    <span className="text-gray-600">{s.name}</span>
+                  </div>
+                  <span className="font-semibold">{s.value}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Types de contrats par PAYS */}
@@ -323,6 +383,75 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* ── Prospects section ─────────────────────────────────────────── */}
+      {storesProspects.length > 0 && (
+        <div className="bg-white rounded-2xl border border-violet-100 shadow-sm overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-violet-50"
+            style={{ background: "linear-gradient(135deg,#F5F3FF 0%,#EDE9FE 100%)" }}>
+            <div>
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="text-lg">🎯</span>
+                <h2 className="font-bold text-violet-900 text-base">Prospects</h2>
+                <span className="text-xs bg-violet-200 text-violet-700 px-2 py-0.5 rounded-full font-semibold">{storesProspects.length}</span>
+              </div>
+              <p className="text-xs text-violet-500">{new Set(storesProspects.map(s=>s.country)).size} pays · magasins en phase de prospection</p>
+            </div>
+            <a href="/countries" className="text-xs text-violet-600 hover:underline flex items-center gap-1">Voir tous <ArrowUpRight size={12}/></a>
+          </div>
+
+          {/* KPIs prospects */}
+          <div className="grid grid-cols-3 gap-0 border-b border-violet-50">
+            {[
+              { label: "Total prospects", value: storesProspects.length, color: "#7C3AED" },
+              { label: "Pays concernés",  value: new Set(storesProspects.map(s=>s.country)).size, color: "#1B2E6B" },
+              { label: "Type Mixte",      value: storesProspects.filter(s=>s.product==="MIXTE").length, color: "#E40E20" },
+            ].map((k, i) => (
+              <div key={i} className={`px-5 py-3 ${i < 2 ? "border-r border-violet-50" : ""}`}>
+                <div className="text-xl font-bold" style={{ color: k.color }}>{k.value}</div>
+                <div className="text-[10px] text-gray-500 font-medium">{k.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Prospect store cards */}
+          <div className="p-5">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {storesProspects.map((s) => {
+                const country = COUNTRIES.find((c) => c.codaKey === s.country);
+                const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([s.name, s.city].filter(Boolean).join(", "))}`;
+                return (
+                  <div key={s.id} className="bg-violet-50 border border-violet-100 rounded-xl p-3 hover:shadow-sm transition-all">
+                    <div className="flex items-start gap-2 mb-2">
+                      <span className="text-xl shrink-0">{country?.flag ?? "🌍"}</span>
+                      <div className="min-w-0">
+                        <p className="font-semibold text-sm text-gray-800 truncate">{s.name}</p>
+                        {s.city ? (
+                          <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
+                            className="text-xs text-violet-500 hover:text-violet-700 flex items-center gap-0.5">
+                            📍 {s.city}
+                          </a>
+                        ) : (
+                          <p className="text-xs text-gray-400">{country?.name ?? s.country}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {s.partnership && (
+                        <span className="text-[10px] bg-white border border-violet-200 text-violet-700 px-1.5 py-0.5 rounded-full">{s.partnership}</span>
+                      )}
+                      {s.product && (
+                        <span className="text-[10px] bg-violet-100 text-violet-600 px-1.5 py-0.5 rounded-full font-medium">{s.product}</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* World map */}
       <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">

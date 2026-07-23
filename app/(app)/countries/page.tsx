@@ -177,8 +177,9 @@ function AddStoreModal({ onClose }: { onClose: () => void }) {
               <select value={status} onChange={(e) => setStatus(e.target.value)}
                 className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none cursor-pointer">
                 <option value="✅ Ouvert">✅ Ouvert</option>
-                <option value="🔍 En recherche cellule">🔍 En recherche cellule</option>
                 <option value="🚧 En cours">🚧 En cours</option>
+                <option value="🔍 En recherche cellule">🔍 En recherche cellule</option>
+                <option value="🎯 Prospects">🎯 Prospects</option>
                 <option value="⏸️ Suspendu">⏸️ Suspendu</option>
                 <option value="❌ Fermé">❌ Fermé</option>
                 <option value="FERMETURE A VENIR">FERMETURE A VENIR</option>
@@ -229,8 +230,32 @@ export default function CountriesPage() {
 
   const getStoreCount = (c: Country) => stores.filter((s) => s.country === c.codaKey).length;
 
+  // ── Store recap across all countries ───────────────────────────────────────
+  const recapStats = [
+    { label: "Ouverts",       color: "bg-green-500",  text: "text-green-700",  bg: "bg-green-50  border-green-100",  status: "✅ Ouvert" },
+    { label: "En cours",      color: "bg-blue-500",   text: "text-blue-700",   bg: "bg-blue-50   border-blue-100",   status: "🚧 En cours" },
+    { label: "En recherche",  color: "bg-yellow-500", text: "text-yellow-700", bg: "bg-yellow-50 border-yellow-100", status: "🔍 En recherche cellule" },
+    { label: "Prospects",     color: "bg-violet-500", text: "text-violet-700", bg: "bg-violet-50 border-violet-100", status: "🎯 Prospects" },
+    { label: "Stand by",      color: "bg-orange-400", text: "text-orange-700", bg: "bg-orange-50 border-orange-100", status: "⏸️ Suspendu" },
+    { label: "Fermés",        color: "bg-gray-400",   text: "text-gray-600",   bg: "bg-gray-50   border-gray-100",   status: "❌ Fermé" },
+  ].map((s) => ({ ...s, count: stores.filter((st) => st.status === s.status).length }))
+   .filter((s) => s.count > 0);
+
   return (
     <div className="space-y-6">
+      {/* Recap block */}
+      <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${recapStats.length}, minmax(0,1fr))` }}>
+        {recapStats.map((s) => (
+          <div key={s.label} className={`rounded-xl border p-3 flex items-center gap-3 ${s.bg}`}>
+            <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${s.color}`} />
+            <div>
+              <div className={`text-xl font-bold ${s.text}`}>{s.count}</div>
+              <div className="text-[10px] text-gray-500 font-medium">{s.label}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+
       {/* Region filter chips */}
       <div className="flex flex-wrap gap-2">
         <button
