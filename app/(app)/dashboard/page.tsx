@@ -1,14 +1,15 @@
 "use client";
-import { COUNTRIES, STORES, INITIAL_MEETINGS } from "@/lib/data";
+import { useState } from "react";
+import { COUNTRIES, STORES } from "@/lib/data";
 import { useTodoStore, useCodaSyncStore } from "@/lib/store";
-import { Globe, Store, Clock, ArrowUpRight, Users, Zap, CheckCircle, RefreshCw, Check, Video } from "lucide-react";
+import { Globe, Store, Clock, ArrowUpRight, RefreshCw, X } from "lucide-react";
 import dynamic from "next/dynamic";
 const WorldMap = dynamic(() => import("@/components/shared/WorldMap").then(m => m.WorldMap), {
   ssr: false,
   loading: () => <div className="h-[340px] bg-gray-50 rounded-2xl border border-gray-100 animate-pulse" />,
 });
 import {
-  PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend,
+  PieChart, Pie, Cell, ResponsiveContainer,
 } from "recharts";
 
 const PIE_COLORS = ["#1B2E6B", "#E40E20", "#22C55E", "#F59E0B", "#8B5CF6", "#06B6D4", "#EC4899"];
@@ -26,67 +27,118 @@ function CustomPieLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent }:
   );
 }
 
+
+type ActiveSlice = { chartId: string; name: string; detail: string[]; color: string } | null;
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function SmallTooltip({ active, payload }: any) {
-  if (!active || !payload?.length) return null;
-  const d = payload[0];
-  const detail: string[] = d.payload?.detail ?? [];
+function PieCard({ title, chartId, data, legend, emptyMsg, activeSlice, setActiveSlice }: {
+  title: string; chartId: string;
+  data: { name: string; value: number; color: string; detail?: string[]; percent?: number }[];
+  legend: { name: string; value: number; color: string; unit: string }[];
+  emptyMsg?: string;
+  activeSlice: ActiveSlice;
+  setActiveSlice: (s: ActiveSlice) => void;
+}) {
+  const handleClick = (entry: { name: string; color: string; detail?: string[] }) => {
+    if (activeSlice?.chartId === chartId && activeSlice?.name === entry.name) {
+      setActiveSlice(null);
+    } else {
+      setActiveSlice({ chartId, name: entry.name, detail: entry.detail ?? [], color: entry.color });
+    }
+  };
+  const isSelected = (name: string) => activeSlice?.chartId === chartId && activeSlice?.name === name;
   return (
-    <div className="bg-gray-900 text-white text-xs px-3 py-2.5 rounded-lg shadow-xl max-w-[200px]">
-      <p className="font-semibold mb-0.5">{d.name}</p>
-      <p className="text-gray-300 mb-1">{d.value} · {((d.payload.percent ?? 0) * 100).toFixed(1)}%</p>
-      {detail.length > 0 && (
-        <ul className="border-t border-white/10 pt-1.5 space-y-0.5">
-          {detail.slice(0, 8).map((item, i) => (
-            <li key={i} className="text-gray-300 truncate">· {item}</li>
-          ))}
-          {detail.length > 8 && <li className="text-gray-500">+{detail.length - 8} autres</li>}
-        </ul>
+    <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+      <h2 className="font-semibold text-gray-900 mb-0.5 text-sm">{title}</h2>
+      <p className="text-[10px] text-gray-400 mb-3">Hover · cliquer pour le détail</p>
+      {data.length === 0 && emptyMsg ? (
+        <p className="text-xs text-gray-400 text-center py-10">{emptyMsg}</p>
+      ) : (
+        <>
+          <ResponsiveContainer width="100%" height={130}>
+            <PieChart>
+              <Pie data={data} dataKey="value" cx="50%" cy="50%"
+                outerRadius={58} innerRadius={28} labelLine={false} label={<CustomPieLabel />}
+                onClick={(entry) => handleClick(entry as { name: string; color: string; detail?: string[] })}
+                style={{ cursor: "pointer" }}>
+                {data.map((s, i) => (
+                  <Cell key={i} fill={s.color}
+                    stroke={isSelected(s.name) ? "#1f2937" : "none"}
+                    strokeWidth={isSelected(s.name) ? 2 : 0}
+                    opacity={activeSlice && activeSlice.chartId === chartId && !isSelected(s.name) ? 0.35 : 1} />
+                ))}
+              </Pie>
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="space-y-1 mt-1">
+            {legend.map((s) => (
+              <button key={s.name} onClick={() => handleClick(data.find(d => d.name === s.name) ?? { name: s.name, color: s.color })}
+                className={`w-full flex items-center justify-between text-xs rounded px-1 py-0.5 transition-colors ${isSelected(s.name) ? "bg-gray-100" : "hover:bg-gray-50"}`}>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-sm shrink-0" style={{ background: s.color }} />
+                  <span className="text-gray-600 truncate max-w-[110px]">{s.name}</span>
+                </div>
+                <span className="font-semibold">{s.value}{s.unit}</span>
+              </button>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
 }
 
 export default function DashboardPage() {
-  const { todos, updateTodo } = useTodoStore();
+  const { todos } = useTodoStore();
   const { stores: syncedStores, lastSync, isSyncing, syncFromCoda } = useCodaSyncStore();
   const stores = syncedStores ?? STORES;
-
-  const urgentTodos = todos.filter((t) => t.priority === "haute" && t.status !== "terminé").slice(0, 4);
-  const recentMeeting = INITIAL_MEETINGS[0];
+  const [activeSlice, setActiveSlice] = useState<ActiveSlice>(null);
 
   // ── Store stats ──────────────────────────────────────────────────────────────
-  const activeStores    = stores.filter((s) => s.status !== "❌ Fermé" && s.status !== "FERMETURE A VENIR");
-  const storesOpen      = stores.filter((s) => s.status === "✅ Ouvert");
-  const storesEnCours   = stores.filter((s) => s.status === "🚧 En cours");
-  const storesFermeture = stores.filter((s) => s.status === "FERMETURE A VENIR" || s.status === "❌ Fermé");
-  const storesSuspendu  = stores.filter((s) => s.status === "⏸️ Suspendu");
-  const storesRecherche = stores.filter((s) => s.status === "🔍 En recherche cellule");
-  const storesProspects = stores.filter((s) => s.status === "🎯 Prospects");
-  const totalCountries  = new Set(stores.map((s) => s.country)).size;
+  const storesProspects    = stores.filter((s) => s.status === "🎯 Prospects");
+  const nonProspectStores  = stores.filter((s) => s.status !== "🎯 Prospects");
+  const activeStores       = nonProspectStores.filter((s) => s.status !== "❌ Fermé" && s.status !== "FERMETURE A VENIR");
+  const storesOpen         = stores.filter((s) => s.status === "✅ Ouvert");
+  const storesEnCours      = stores.filter((s) => s.status === "🚧 En cours");
+  const storesSuspendu     = stores.filter((s) => s.status === "⏸️ Suspendu");
+  const storesRecherche    = stores.filter((s) => s.status === "🔍 En recherche cellule");
+  // Total territories = unique countries with NON-prospect stores (= 32)
+  const totalCountries     = new Set(nonProspectStores.map((s) => s.country)).size;
+  // Prospect territories = unique countries with ONLY prospect stores (= 21)
+  const prospectCountries  = new Set(storesProspects.map((s) => s.country)).size;
 
-  // Store status pie — ALL statuses, with store name list for tooltip
+  // Store status pie — ALL statuses, separate FERMETURE A VENIR
+  const storesFermeturePrevue = stores.filter((s) => s.status === "FERMETURE A VENIR");
+  const storesFermes          = stores.filter((s) => s.status === "❌ Fermé");
   const statusData = [
-    { name: "Ouverts",      value: storesOpen.length,      color: "#22C55E", detail: storesOpen.map(s => s.name) },
-    { name: "En cours",     value: storesEnCours.length,   color: "#3B82F6", detail: storesEnCours.map(s => s.name) },
-    { name: "En recherche", value: storesRecherche.length, color: "#8B5CF6", detail: storesRecherche.map(s => s.name) },
-    { name: "Prospects",    value: storesProspects.length, color: "#7C3AED", detail: storesProspects.map(s => s.name) },
-    { name: "Stand by",     value: storesSuspendu.length,  color: "#F59E0B", detail: storesSuspendu.map(s => s.name) },
-    { name: "Fermeture",    value: storesFermeture.length, color: "#EF4444", detail: storesFermeture.map(s => s.name) },
+    { name: "Ouverts",            value: storesOpen.length,            color: "#22C55E", detail: storesOpen.map(s => s.name) },
+    { name: "En cours",           value: storesEnCours.length,         color: "#3B82F6", detail: storesEnCours.map(s => s.name) },
+    { name: "En recherche",       value: storesRecherche.length,       color: "#8B5CF6", detail: storesRecherche.map(s => s.name) },
+    { name: "Prospects",          value: storesProspects.length,       color: "#7C3AED", detail: storesProspects.map(s => s.name) },
+    { name: "Stand by",           value: storesSuspendu.length,        color: "#F59E0B", detail: storesSuspendu.map(s => s.name) },
+    { name: "Fermeture à venir",  value: storesFermeturePrevue.length, color: "#F97316", detail: storesFermeturePrevue.map(s => s.name) },
+    { name: "Fermés",             value: storesFermes.length,          color: "#9CA3AF", detail: storesFermes.map(s => s.name) },
   ].filter((s) => s.value > 0);
 
-  // MIXTE / TEXTILE pie
-  const storesMixte   = stores.filter((s) => s.product === "MIXTE");
-  const storesTextile = stores.filter((s) => s.product === "TEXTILE");
+  // MIXTE / TEXTILE pie — include "Non renseigné"
+  const storesMixte       = stores.filter((s) => s.product === "MIXTE");
+  const storesTextile     = stores.filter((s) => s.product === "TEXTILE");
+  const storesNoProduct   = stores.filter((s) => s.product !== "MIXTE" && s.product !== "TEXTILE");
   const mixteData = [
-    { name: "Mixte",   value: storesMixte.length,   color: "#1B2E6B", detail: storesMixte.map(s => s.name) },
-    { name: "Textile", value: storesTextile.length,  color: "#E40E20", detail: storesTextile.map(s => s.name) },
+    { name: "Mixte",          value: storesMixte.length,     color: "#1B2E6B", detail: storesMixte.map(s => s.name) },
+    { name: "Textile",        value: storesTextile.length,   color: "#E40E20", detail: storesTextile.map(s => s.name) },
+    { name: "Non renseigné",  value: storesNoProduct.length, color: "#D1D5DB", detail: storesNoProduct.map(s => s.name) },
   ].filter((s) => s.value > 0);
 
-  // ── Country status (priority-based, show ALL) ─────────────────────────────
-  // Priority: Ouvert > En cours > En recherche > Prospects > Suspendu > Fermeture > Fermé
+  // ── Country status (priority-based, all 52 countries from store data) ──────
   const STATUS_PRIORITY = ["✅ Ouvert","🚧 En cours","🔍 En recherche cellule","🎯 Prospects","⏸️ Suspendu","FERMETURE A VENIR","❌ Fermé"] as const;
-  const activeCountries = COUNTRIES.filter((c) => stores.some((s) => s.country === c.codaKey));
+  // Country status pie uses only NON-prospect stores (32 territories)
+  const allCountryKeys = Array.from(new Set(nonProspectStores.map((s) => s.country).filter(Boolean)));
+
+  const getCountryDisplay = (key: string) => {
+    const found = COUNTRIES.find((c) => c.codaKey === key);
+    return found ? `${found.flag} ${found.name}` : key;
+  };
 
   const getCountryStatus = (codaKey: string) => {
     const cs = stores.filter((s) => s.country === codaKey);
@@ -107,19 +159,21 @@ export default function DashboardPage() {
   ] as const;
 
   const countryStatusData = COUNTRY_STATUS_CFG.map(({ key, name, color }) => {
-    const matching = activeCountries.filter((c) => getCountryStatus(c.codaKey) === key);
-    return { name, value: matching.length, color, detail: matching.map((c) => `${c.flag} ${c.name}`) };
+    const matchingKeys = allCountryKeys.filter((k) => getCountryStatus(k) === key);
+    return { name, value: matchingKeys.length, color, detail: matchingKeys.map(getCountryDisplay) };
   }).filter((s) => s.value > 0);
 
   // ── Partnership type per COUNTRY (not per store) ──────────────────────────
   const countryPartnershipMap: Record<string, string> = {};
-  activeCountries.forEach((c) => {
-    const countryStores = stores.filter((s) => s.country === c.codaKey && s.partnership);
-    if (!countryStores.length) return;
-    // Take the most frequent partnership type for this country
+  allCountryKeys.forEach((k) => {
+    const countryStores = stores.filter((s) => s.country === k && s.partnership);
+    if (!countryStores.length) {
+      countryPartnershipMap[k] = "Non renseigné";
+      return;
+    }
     const freq: Record<string, number> = {};
     countryStores.forEach((s) => { freq[s.partnership] = (freq[s.partnership] || 0) + 1; });
-    countryPartnershipMap[c.codaKey] = Object.entries(freq).sort((a, b) => b[1] - a[1])[0][0];
+    countryPartnershipMap[k] = Object.entries(freq).sort((a, b) => b[1] - a[1])[0][0];
   });
   const partnershipCountByCountry = Object.values(countryPartnershipMap).reduce<Record<string, number>>((acc, p) => {
     acc[p] = (acc[p] || 0) + 1;
@@ -130,9 +184,11 @@ export default function DashboardPage() {
     "MASTER FRANCHISE": "#E40E20",
     "DISTRI LIGHT": "#06B6D4",
     "COMMISSION AFFILIATION": "#8B5CF6",
+    "Non renseigné": "#D1D5DB",
   };
   const partnershipData = Object.entries(partnershipCountByCountry).map(([name, value]) => ({
     name, value, color: partnershipColors[name] ?? "#9CA3AF",
+    detail: allCountryKeys.filter(k => countryPartnershipMap[k] === name).map(getCountryDisplay),
   })).sort((a, b) => b.value - a.value);
 
   const topCountries = COUNTRIES.map((c) => ({
@@ -166,10 +222,10 @@ export default function DashboardPage() {
       {/* KPI Cards */}
       <div className="grid grid-cols-4 gap-4">
         {[
-          { label: "Pays / marchés actifs", value: totalCountries, icon: Globe, color: "#1B2E6B", sub: `${countryStatusData.find(d=>d.name==="Ouverts")?.value ?? 0} pays ouverts` },
-          { label: "Magasins actifs", value: activeStores.length, icon: Store, color: "#E40E20", sub: `${storesOpen.length} ouverts · ${storesEnCours.length} en cours` },
-          { label: "Prospects", value: storesProspects.length, icon: Store, color: "#7C3AED", sub: `${new Set(storesProspects.map(s=>s.country)).size} pays concernés` },
-          { label: "Actions en cours", value: todos.filter((t) => t.status !== "terminé").length, icon: Clock, color: "#8B5CF6", sub: `${todos.filter(t => t.priority === "haute" && t.status !== "terminé").length} haute priorité` },
+          { label: "Territoires actifs", value: totalCountries, icon: Globe, color: "#1B2E6B", sub: `${countryStatusData.find(d=>d.name==="Ouverts")?.value ?? 0} pays ouverts` },
+          { label: "Magasins (hors prospects)", value: nonProspectStores.length, icon: Store, color: "#E40E20", sub: `${storesOpen.length} ouverts · ${storesEnCours.length} en cours` },
+          { label: "Territoires prospects", value: prospectCountries, icon: ArrowUpRight, color: "#7C3AED", sub: `${storesProspects.length} magasins prospects` },
+          { label: "Tâches à faire", value: todos.filter((t) => t.status !== "terminé").length, icon: Clock, color: "#8B5CF6", sub: `${todos.filter(t => t.priority === "haute" && t.status !== "terminé").length} priorité P1` },
         ].map((kpi) => (
           <div key={kpi.label} className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
             <div className="flex items-start justify-between">
@@ -187,202 +243,103 @@ export default function DashboardPage() {
       </div>
 
       {/* Charts row — 4 cols */}
-      <div className="grid grid-cols-4 gap-4">
-        {/* Statut des MAGASINS */}
-        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-          <h2 className="font-semibold text-gray-900 mb-0.5 text-sm">Statut des magasins</h2>
-          <p className="text-[10px] text-gray-400 mb-3">Hover pour le détail</p>
-          <ResponsiveContainer width="100%" height={130}>
-            <PieChart>
-              <Pie data={withPercent(statusData)} dataKey="value" cx="50%" cy="50%"
-                outerRadius={58} innerRadius={28} labelLine={false} label={<CustomPieLabel />}>
-                {statusData.map((s, i) => <Cell key={i} fill={s.color} />)}
-              </Pie>
-              <Tooltip content={<SmallTooltip />} />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="space-y-1 mt-1">
-            {statusData.map((s) => (
-              <div key={s.name} className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-sm" style={{ background: s.color }} />
-                  <span className="text-gray-600">{s.name}</span>
-                </div>
-                <span className="font-semibold">{s.value}</span>
-              </div>
-            ))}
-          </div>
+      <div className="space-y-3">
+        <div className="grid grid-cols-4 gap-4">
+          {/* Statut des MAGASINS */}
+          <PieCard
+            title="Statut des magasins" chartId="stores"
+            data={withPercent(statusData)} activeSlice={activeSlice} setActiveSlice={setActiveSlice}
+            legend={statusData.map(s => ({ name: s.name, value: s.value, color: s.color, unit: "" }))}
+          />
+          {/* Statut des PAYS */}
+          <PieCard
+            title="Statut des pays" chartId="countries"
+            data={withPercent(countryStatusData)} activeSlice={activeSlice} setActiveSlice={setActiveSlice}
+            legend={countryStatusData.map(s => ({ name: s.name, value: s.value, color: s.color, unit: "" }))}
+          />
+          {/* MIXTE / TEXTILE */}
+          <PieCard
+            title="Mixte / Textile" chartId="mixte"
+            data={withPercent(mixteData)} activeSlice={activeSlice} setActiveSlice={setActiveSlice}
+            legend={mixteData.map(s => ({ name: s.name, value: s.value, color: s.color, unit: "" }))}
+            emptyMsg="Données non renseignées"
+          />
+          {/* Types de contrats par PAYS */}
+          <PieCard
+            title="Contrats par pays" chartId="partnership"
+            data={withPercent(partnershipData)} activeSlice={activeSlice} setActiveSlice={setActiveSlice}
+            legend={partnershipData.map(s => ({ name: s.name, value: s.value, color: s.color, unit: " pays" }))}
+          />
         </div>
 
-        {/* Statut des PAYS */}
-        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-          <h2 className="font-semibold text-gray-900 mb-0.5 text-sm">Statut des pays</h2>
-          <p className="text-[10px] text-gray-400 mb-3">Hover pour la liste des pays</p>
-          <ResponsiveContainer width="100%" height={130}>
-            <PieChart>
-              <Pie data={withPercent(countryStatusData)} dataKey="value" cx="50%" cy="50%"
-                outerRadius={58} innerRadius={28} labelLine={false} label={<CustomPieLabel />}>
-                {countryStatusData.map((s, i) => <Cell key={i} fill={s.color} />)}
-              </Pie>
-              <Tooltip content={<SmallTooltip />} />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="space-y-1 mt-1">
-            {countryStatusData.map((s) => (
-              <div key={s.name} className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-sm" style={{ background: s.color }} />
-                  <span className="text-gray-600">{s.name}</span>
-                </div>
-                <span className="font-semibold">{s.value}</span>
+        {/* Click-to-expand detail panel */}
+        {activeSlice && (
+          <div className="bg-white rounded-2xl border shadow-sm overflow-hidden" style={{ borderColor: activeSlice.color + "40" }}>
+            <div className="flex items-center justify-between px-5 py-3 border-b" style={{ background: activeSlice.color + "10", borderColor: activeSlice.color + "30" }}>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full" style={{ background: activeSlice.color }} />
+                <span className="font-semibold text-sm text-gray-800">{activeSlice.name}</span>
+                <span className="text-xs px-2 py-0.5 rounded-full font-semibold text-white" style={{ background: activeSlice.color }}>{activeSlice.detail.length}</span>
               </div>
-            ))}
-          </div>
-        </div>
-
-        {/* MIXTE / TEXTILE */}
-        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-          <h2 className="font-semibold text-gray-900 mb-0.5 text-sm">Mixte / Textile</h2>
-          <p className="text-[10px] text-gray-400 mb-3">Répartition par type</p>
-          <ResponsiveContainer width="100%" height={130}>
-            <PieChart>
-              <Pie data={withPercent(mixteData)} dataKey="value" cx="50%" cy="50%"
-                outerRadius={58} innerRadius={28} labelLine={false} label={<CustomPieLabel />}>
-                {mixteData.map((s, i) => <Cell key={i} fill={s.color} />)}
-              </Pie>
-              <Tooltip content={<SmallTooltip />} />
-            </PieChart>
-          </ResponsiveContainer>
-          {mixteData.length === 0 ? (
-            <p className="text-xs text-gray-400 text-center py-2">Données non renseignées</p>
-          ) : (
-            <div className="space-y-1 mt-1">
-              {mixteData.map((s) => (
-                <div key={s.name} className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-2 h-2 rounded-sm" style={{ background: s.color }} />
-                    <span className="text-gray-600">{s.name}</span>
-                  </div>
-                  <span className="font-semibold">{s.value}</span>
-                </div>
-              ))}
+              <button onClick={() => setActiveSlice(null)} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
             </div>
-          )}
-        </div>
-
-        {/* Types de contrats par PAYS */}
-        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-          <h2 className="font-semibold text-gray-900 mb-0.5 text-sm">Contrats par pays</h2>
-          <p className="text-[10px] text-gray-400 mb-3">Type de partenariat principal</p>
-          <ResponsiveContainer width="100%" height={130}>
-            <PieChart>
-              <Pie data={withPercent(partnershipData)} dataKey="value" cx="50%" cy="50%"
-                outerRadius={58} innerRadius={28} labelLine={false} label={<CustomPieLabel />}>
-                {partnershipData.map((s, i) => <Cell key={i} fill={s.color} />)}
-              </Pie>
-              <Tooltip content={<SmallTooltip />} />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="space-y-1 mt-1">
-            {partnershipData.map((s) => (
-              <div key={s.name} className="flex items-center justify-between text-xs">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-sm" style={{ background: s.color }} />
-                  <span className="text-gray-600 truncate max-w-[110px]">{s.name}</span>
-                </div>
-                <span className="font-semibold">{s.value} pays</span>
+            <div className="p-4">
+              <div className="flex flex-wrap gap-2">
+                {activeSlice.detail.map((item, i) => (
+                  <span key={i} className="text-xs px-2.5 py-1 rounded-full border bg-gray-50 text-gray-700">{item}</span>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Urgent tasks + last meeting */}
-      <div className="grid grid-cols-2 gap-4">
-        {/* Actions urgentes */}
-        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-gray-900">Actions urgentes</h2>
-            <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-semibold">{urgentTodos.length}</span>
+      {/* Launch progress gauges */}
+      {storesEnCours.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">🚧</span>
+              <h2 className="font-semibold text-gray-900">Lancements en cours</h2>
+              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-semibold">{storesEnCours.length}</span>
+            </div>
+            <a href="/lancement" className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+              Voir le détail <ArrowUpRight size={11} />
+            </a>
           </div>
-          <div className="space-y-2">
-            {urgentTodos.length === 0 ? (
-              <p className="text-xs text-gray-400 text-center py-4">Aucune action urgente ✅</p>
-            ) : urgentTodos.map((t) => {
-              const country = COUNTRIES.find((c) => c.id === t.countryId);
-              const done = t.status === "terminé";
+          <div className="grid grid-cols-2 gap-0 divide-x divide-gray-100">
+            {Array.from(new Set(storesEnCours.map(s => s.country))).map((countryKey) => {
+              const countryStores = storesEnCours.filter(s => s.country === countryKey);
+              const meta = COUNTRIES.find(c => c.codaKey === countryKey);
+              const totalStores = stores.filter(s => s.country === countryKey).length;
+              const openStores = stores.filter(s => s.country === countryKey && s.status === "✅ Ouvert").length;
+              const progress = totalStores > 0 ? Math.round((openStores / totalStores) * 100) : 0;
               return (
-                <div key={t.id} className={`flex items-center gap-3 p-2.5 rounded-xl transition-all ${done ? "opacity-50" : "hover:bg-gray-50"}`}>
-                  <button
-                    onClick={() => updateTodo(t.id, { status: done ? "à_faire" : "terminé" })}
-                    className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${done ? "bg-green-500 border-green-500" : "border-gray-300 hover:border-green-400"}`}>
-                    {done && <Check size={11} className="text-white" />}
-                  </button>
-                  <span className="text-lg shrink-0">{country?.flag ?? "📋"}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium truncate ${done ? "line-through text-gray-400" : "text-gray-800"}`}>{t.title}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-[10px] text-gray-400">{t.assignee}</span>
-                      {t.dueDate && (
-                        <span className={`text-[10px] font-medium ${new Date(t.dueDate) < new Date() && !done ? "text-red-500" : "text-orange-400"}`}>
-                          · {new Date(t.dueDate).toLocaleDateString("fr-FR")}
-                        </span>
-                      )}
+                <div key={countryKey} className="px-5 py-4 border-b border-gray-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">{meta?.flag ?? "🌍"}</span>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800">{meta?.name ?? countryKey}</p>
+                        <p className="text-[10px] text-gray-400">{countryStores.length} magasin{countryStores.length > 1 ? "s" : ""} en cours</p>
+                      </div>
                     </div>
+                    <span className="text-sm font-bold text-blue-600">{progress}%</span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-1.5">
+                    <div className="h-1.5 rounded-full bg-blue-500 transition-all" style={{ width: `${progress}%` }} />
+                  </div>
+                  <div className="flex items-center gap-3 mt-2 text-[10px] text-gray-400">
+                    {countryStores.map(s => (
+                      <span key={s.id} className="truncate max-w-[120px]">{s.name}</span>
+                    ))}
                   </div>
                 </div>
               );
             })}
           </div>
-          <a href="/todos" className="mt-4 block text-center text-xs text-blue-600 hover:underline">
-            Voir toutes les actions →
-          </a>
         </div>
-
-        {/* Dernière réunion */}
-        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-gray-900">Dernière réunion</h2>
-          </div>
-          {recentMeeting ? (
-            <>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-gray-400">{new Date(recentMeeting.date).toLocaleDateString("fr-FR")}</span>
-              </div>
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
-                  <Zap size={15} className="text-blue-500" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-800">{recentMeeting.title}</p>
-                  <p className="text-xs text-gray-400">{recentMeeting.duration} min</p>
-                </div>
-              </div>
-              <p className="text-xs text-gray-600 bg-gray-50 rounded-lg p-3 mb-3 leading-relaxed line-clamp-3">
-                {recentMeeting.summary}
-              </p>
-              <div className="space-y-1.5">
-                {recentMeeting.actionItems?.slice(0, 3).map((a, i) => (
-                  <div key={i} className="flex items-start gap-2 text-xs text-gray-600">
-                    <CheckCircle size={12} className="text-green-500 mt-0.5 shrink-0" />
-                    {a}
-                  </div>
-                ))}
-              </div>
-              <div className="flex items-center gap-1.5 mt-3 pt-3 border-t border-gray-50">
-                <Users size={11} className="text-gray-400" />
-                <p className="text-xs text-gray-400">{recentMeeting.participants.join(", ")}</p>
-              </div>
-            </>
-          ) : (
-            <div className="text-center py-6 text-gray-400">
-              <Video size={28} className="mx-auto mb-2 opacity-30" />
-              <p className="text-sm">Aucune réunion enregistrée</p>
-              <a href="/meetings" className="text-xs text-blue-500 hover:underline mt-1 block">Synchroniser Fireflies →</a>
-            </div>
-          )}
-        </div>
-      </div>
+      )}
 
       {/* ── Prospects section ─────────────────────────────────────────── */}
       {storesProspects.length > 0 && (

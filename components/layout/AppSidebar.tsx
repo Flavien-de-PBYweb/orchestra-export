@@ -5,9 +5,9 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   LayoutDashboard, Globe, CheckSquare, BarChart3,
   Video, StickyNote, Users, LogOut, ChevronRight,
-  Bell, Settings, AlertCircle, Calendar, X,
+  Bell, Settings, AlertCircle, Calendar, X, Target, Rocket,
 } from "lucide-react";
-import { useAuthStore, useTodoStore } from "@/lib/store";
+import { useAuthStore, useTodoStore, useTeamStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { OrchestraLogo } from "@/components/shared/OrchestraLogo";
 import { COUNTRIES } from "@/lib/data";
@@ -15,6 +15,8 @@ import { COUNTRIES } from "@/lib/data";
 const NAV = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Tableau de bord" },
   { href: "/countries", icon: Globe, label: "Pays & Marchés" },
+  { href: "/prospects", icon: Target, label: "Prospects" },
+  { href: "/lancement", icon: Rocket, label: "Lancement" },
   { href: "/todos", icon: CheckSquare, label: "Plan d'actions" },
   { href: "/stats", icon: BarChart3, label: "Statistiques" },
   { href: "/meetings", icon: Video, label: "Réunions" },
@@ -31,7 +33,14 @@ export function AppSidebar() {
   const router = useRouter();
   const { user, logout } = useAuthStore();
   const { todos } = useTodoStore();
+  const { users: teamUsers } = useTeamStore();
   const [showNotifs, setShowNotifs] = useState(false);
+
+  const currentTeamUser = teamUsers.find(u => u.email === user?.email);
+  const pageAccess = currentTeamUser?.pageAccess ?? {};
+  const visibleNav = user?.role === "admin"
+    ? NAV
+    : NAV.filter(n => pageAccess[n.href] !== false);
 
   const handleLogout = () => {
     logout();
@@ -92,7 +101,7 @@ export function AppSidebar() {
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 overflow-y-auto space-y-0.5">
-        {NAV.map(({ href, icon: Icon, label, badge }: { href: string; icon: React.ElementType; label: string; badge?: string }) => {
+        {visibleNav.map(({ href, icon: Icon, label, badge }: { href: string; icon: React.ElementType; label: string; badge?: string }) => {
           const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
           return (
             <Link key={href} href={href}

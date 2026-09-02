@@ -13,6 +13,7 @@ export interface TeamUser {
   active: boolean;
   lastActive?: string;
   password?: string;
+  pageAccess?: Record<string, boolean>;
 }
 
 const INITIAL_TEAM_USERS: TeamUser[] = [
@@ -44,7 +45,7 @@ export const useTeamStore = create<TeamStore>()(
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 interface AuthStore {
-  user: { id: string; name: string; email: string; role: string } | null;
+  user: { id: string; name: string; email: string; role: string; pageAccess?: Record<string, boolean> } | null;
   setUser: (user: AuthStore["user"]) => void;
   logout: () => void;
 }
@@ -177,6 +178,24 @@ export const useNoteStore = create<NoteStore>()(
         })),
     }),
     { name: "orchestra-notes" }
+  )
+);
+
+// ── Country Notes ─────────────────────────────────────────────────────────────
+
+interface CountryNotesStore {
+  notes: Record<string, string>;
+  setNote: (countryKey: string, text: string) => void;
+}
+
+export const useCountryNotesStore = create<CountryNotesStore>()(
+  persist(
+    (set) => ({
+      notes: {},
+      setNote: (countryKey, text) =>
+        set((s) => ({ notes: { ...s.notes, [countryKey]: text } })),
+    }),
+    { name: "orchestra-country-notes" }
   )
 );
 

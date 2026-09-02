@@ -62,13 +62,24 @@ export async function GET() {
     const stores = allRows.map((row: unknown) => {
       const r = row as { id: string; values: Record<string, unknown> };
       const val = r.values ?? {};
+      const rawStatus = String(val[COLS.status] ?? "");
+      const STATUS_MAP: Record<string, string> = {
+        "PROSPECT": "🎯 Prospects",
+        "PROSPECTS": "🎯 Prospects",
+      };
+      const rawProduct = String(val[COLS.product] ?? "");
+      const PRODUCT_MAP: Record<string, string> = {
+        "Mixte": "MIXTE",
+        "mixte": "MIXTE",
+        "Centre commercial": "",
+      };
       return {
         id: r.id,
         name: String(val[COLS.name] ?? ""),
         country: String(val[COLS.country] ?? ""),
-        status: String(val[COLS.status] ?? ""),
+        status: STATUS_MAP[rawStatus] ?? rawStatus,
         partnership: String(val[COLS.partnership] ?? ""),
-        product: String(val[COLS.product] ?? ""),
+        product: PRODUCT_MAP[rawProduct] ?? rawProduct,
         code: String(val[COLS.code] ?? ""),
         rep: String(val[COLS.rep] ?? ""),
         denom: String(val[COLS.denom] ?? ""),

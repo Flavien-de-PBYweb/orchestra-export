@@ -3,7 +3,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { COUNTRIES, STORES, type Country } from "@/lib/data";
 import { useCodaSyncStore } from "@/lib/store";
-import { Search, Plus, Store, MapPin, X, Loader2 } from "lucide-react";
+import { Search, Plus, Store, MapPin, X, Loader2, StickyNote } from "lucide-react";
+import { useCountryNotesStore } from "@/lib/store";
 
 const REGION_COLORS: Record<string, string> = {
   "Europe": "bg-blue-50 text-blue-700",
@@ -17,7 +18,10 @@ const REGION_COLORS: Record<string, string> = {
   "Moyen-Orient": "bg-amber-50 text-amber-700",
 };
 
-function CountryCard({ c, storeCount, onClick }: { c: Country; storeCount: number; onClick: () => void }) {
+function CountryCard({ c, storeCount, hasNote, onClick, onNote }: {
+  c: Country; storeCount: number; hasNote: boolean;
+  onClick: () => void; onNote: (e: React.MouseEvent) => void;
+}) {
   return (
     <div
       onClick={onClick}
@@ -33,6 +37,12 @@ function CountryCard({ c, storeCount, onClick }: { c: Country; storeCount: numbe
             </span>
           </div>
         </div>
+        <button
+          onClick={onNote}
+          title="Notes"
+          className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${hasNote ? "bg-yellow-100 text-yellow-600" : "bg-gray-50 text-gray-300 hover:text-yellow-500 hover:bg-yellow-50"}`}>
+          <StickyNote size={13} />
+        </button>
       </div>
       <div className="mt-4 bg-gray-50 rounded-lg p-2.5 flex items-center gap-2">
         <Store size={12} className="text-gray-400" />
@@ -214,11 +224,15 @@ function AddStoreModal({ onClose }: { onClose: () => void }) {
 export default function CountriesPage() {
   const router = useRouter();
   const { stores: syncedStores } = useCodaSyncStore();
+  const { notes: countryNotes, setNote } = useCountryNotesStore();
   const stores = syncedStores ?? STORES;
   const [search, setSearch] = useState("");
   const [filterRegion, setFilterRegion] = useState("all");
   const [view, setView] = useState<"grid" | "list">("grid");
   const [showAdd, setShowAdd] = useState(false);
+  const [activeStatus, setActiveStatus] = useState<string | null>(null);
+  const [noteCountry, setNoteCountry] = useState<Country | null>(null);
+  const [noteText, setNoteText] = useState("");
 
   const regions = Array.from(new Set(COUNTRIES.map((c) => c.region))).sort();
 
@@ -232,29 +246,77 @@ export default function CountriesPage() {
 
   // ── Store recap across all countries ───────────────────────────────────────
   const recapStats = [
-    { label: "Ouverts",       color: "bg-green-500",  text: "text-green-700",  bg: "bg-green-50  border-green-100",  status: "✅ Ouvert" },
-    { label: "En cours",      color: "bg-blue-500",   text: "text-blue-700",   bg: "bg-blue-50   border-blue-100",   status: "🚧 En cours" },
-    { label: "En recherche",  color: "bg-yellow-500", text: "text-yellow-700", bg: "bg-yellow-50 border-yellow-100", status: "🔍 En recherche cellule" },
-    { label: "Prospects",     color: "bg-violet-500", text: "text-violet-700", bg: "bg-violet-50 border-violet-100", status: "🎯 Prospects" },
-    { label: "Stand by",      color: "bg-orange-400", text: "text-orange-700", bg: "bg-orange-50 border-orange-100", status: "⏸️ Suspendu" },
-    { label: "Fermés",        color: "bg-gray-400",   text: "text-gray-600",   bg: "bg-gray-50   border-gray-100",   status: "❌ Fermé" },
+    { label: "Ouverts",            color: "bg-green-500",  text: "text-green-700",  bg: "bg-green-50  border-green-100",  activeBg: "ring-2 ring-green-400",  status: "✅ Ouvert" },
+    { label: "En cours",           color: "bg-blue-500",   text: "text-blue-700",   bg: "bg-blue-50   border-blue-100",   activeBg: "ring-2 ring-blue-400",   status: "🚧 En cours" },
+    { label: "En recherche",       color: "bg-yellow-500", text: "text-yellow-700", bg: "bg-yellow-50 border-yellow-100", activeBg: "ring-2 ring-yellow-400", status: "🔍 En recherche cellule" },
+    { label: "Fermeture à venir",  color: "bg-orange-500", text: "text-orange-700", bg: "bg-orange-50 border-orange-100", activeBg: "ring-2 ring-orange-400", status: "FERMETURE A VENIR" },
+    { label: "Prospects",          color: "bg-violet-500", text: "text-violet-700", bg: "bg-violet-50 border-violet-100", activeBg: "ring-2 ring-violet-400", status: "🎯 Prospects" },
+    { label: "Stand by",           color: "bg-gray-400",   text: "text-gray-600",   bg: "bg-gray-50   border-gray-200",   activeBg: "ring-2 ring-gray-400",   status: "⏸️ Suspendu" },
+    { label: "Fermés",             color: "bg-red-400",    text: "text-red-600",    bg: "bg-red-50    border-red-100",    activeBg: "ring-2 ring-red-400",    status: "❌ Fermé" },
   ].map((s) => ({ ...s, count: stores.filter((st) => st.status === s.status).length }))
    .filter((s) => s.count > 0);
 
+  // Stores shown when a status card is clicked
+  const filteredStoresByStatus = activeStatus
+    ? stores.filter((s) => s.status === activeStatus)
+    : [];
+
   return (
     <div className="space-y-6">
-      {/* Recap block */}
+      {/* Recap block — clickable */}
       <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${recapStats.length}, minmax(0,1fr))` }}>
-        {recapStats.map((s) => (
-          <div key={s.label} className={`rounded-xl border p-3 flex items-center gap-3 ${s.bg}`}>
-            <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${s.color}`} />
-            <div>
-              <div className={`text-xl font-bold ${s.text}`}>{s.count}</div>
-              <div className="text-[10px] text-gray-500 font-medium">{s.label}</div>
+        {recapStats.map((s) => {
+          const isActive = activeStatus === s.status;
+          return (
+            <button key={s.label}
+              onClick={() => setActiveStatus(isActive ? null : s.status)}
+              className={`rounded-xl border p-3 flex items-center gap-3 text-left transition-all cursor-pointer hover:scale-[1.02] ${s.bg} ${isActive ? s.activeBg : ""}`}>
+              <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${s.color}`} />
+              <div>
+                <div className={`text-xl font-bold ${s.text}`}>{s.count}</div>
+                <div className="text-[10px] text-gray-500 font-medium">{s.label}</div>
+              </div>
+              {isActive && <div className="ml-auto text-gray-400 text-xs">✕</div>}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Filtered stores panel */}
+      {activeStatus && filteredStoresByStatus.length > 0 && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 bg-gray-50/60">
+            <h3 className="font-semibold text-sm text-gray-800">
+              Magasins · {recapStats.find(r => r.status === activeStatus)?.label}
+              <span className="ml-2 text-xs font-normal text-gray-500">({filteredStoresByStatus.length})</span>
+            </h3>
+            <button onClick={() => setActiveStatus(null)} className="text-gray-400 hover:text-gray-600 text-xs flex items-center gap-1">
+              <X size={14} /> Fermer
+            </button>
+          </div>
+          <div className="p-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+              {filteredStoresByStatus.map((s) => {
+                const countryMeta = COUNTRIES.find((c) => c.codaKey === s.country);
+                return (
+                  <div key={s.id} className="bg-gray-50 border border-gray-100 rounded-xl p-3 hover:shadow-sm transition-all">
+                    <div className="flex items-start gap-2 mb-1.5">
+                      <span className="text-xl shrink-0">{countryMeta?.flag ?? "🌍"}</span>
+                      <div className="min-w-0">
+                        <p className="font-semibold text-sm text-gray-800 truncate">{s.name}</p>
+                        <p className="text-xs text-gray-400">{countryMeta?.name ?? s.country}{s.city ? ` · ${s.city}` : ""}</p>
+                      </div>
+                    </div>
+                    {s.partnership && (
+                      <span className="text-[10px] bg-white border border-gray-200 text-gray-600 px-2 py-0.5 rounded-full">{s.partnership}</span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
 
       {/* Region filter chips */}
       <div className="flex flex-wrap gap-2">
@@ -304,7 +366,11 @@ export default function CountriesPage() {
       {view === "grid" ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filtered.map((c) => (
-            <CountryCard key={c.id} c={c} storeCount={getStoreCount(c)} onClick={() => router.push(`/countries/${c.id}`)} />
+            <CountryCard key={c.id} c={c} storeCount={getStoreCount(c)}
+              hasNote={!!countryNotes[c.codaKey]}
+              onClick={() => router.push(`/countries/${c.id}`)}
+              onNote={(e) => { e.stopPropagation(); setNoteCountry(c); setNoteText(countryNotes[c.codaKey] ?? ""); }}
+            />
           ))}
         </div>
       ) : (
@@ -348,6 +414,47 @@ export default function CountriesPage() {
       )}
 
       {showAdd && <AddStoreModal onClose={() => setShowAdd(false)} />}
+
+      {/* Country notes slide panel */}
+      {noteCountry && (
+        <div className="fixed inset-0 z-50 flex">
+          <div className="flex-1 bg-black/30" onClick={() => setNoteCountry(null)} />
+          <div className="w-full max-w-md bg-white shadow-2xl flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">{noteCountry.flag}</span>
+                <div>
+                  <h2 className="font-bold text-gray-900">{noteCountry.name}</h2>
+                  <p className="text-xs text-gray-400">Notes internes</p>
+                </div>
+              </div>
+              <button onClick={() => setNoteCountry(null)} className="text-gray-400 hover:text-gray-600">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="flex-1 p-6">
+              <textarea
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+                placeholder={`Notez ici vos observations sur ${noteCountry.name}…\n\nEx : contact local, avancement des négociations, points de vigilance...`}
+                className="w-full h-full min-h-[300px] text-sm text-gray-700 border border-gray-200 rounded-xl p-4 resize-none focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-300"
+              />
+            </div>
+            <div className="px-6 pb-5 flex gap-3">
+              <button onClick={() => setNoteCountry(null)}
+                className="flex-1 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50">
+                Annuler
+              </button>
+              <button
+                onClick={() => { setNote(noteCountry.codaKey, noteText); setNoteCountry(null); }}
+                className="flex-1 py-2 text-sm text-white rounded-lg font-medium"
+                style={{ background: "#1B2E6B" }}>
+                Enregistrer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
